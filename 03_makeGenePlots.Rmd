@@ -47,7 +47,7 @@ theme_clean <- theme_bw() +
 
 
 gene_exp_file = readRDS("log2tpm.rds")
-umap_data2 = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+umap_data2 = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
 score = readRDS("pathways.rds")
 
 myPalette <- colorRampPalette(rev(brewer.pal(11, "RdYlBu"))) # for gene expression
