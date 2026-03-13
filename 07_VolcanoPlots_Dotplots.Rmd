@@ -1,0 +1,362 @@
+---
+title: "Reproducing Volcano plots and dotplot from the Paper"
+author: "Sonali Arora"
+date: "Narch 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+## set up 
+
+```{r}
+library(DOSE)
+library(ggplot2)
+library(readxl)
+library(ggpubr)
+parse_ratio <- function(ratio) {
+    gsize <- as.numeric(sub("/\\d+$", "", as.character(ratio)))
+    gcsize <- as.numeric(sub("^\\d+/", "", as.character(ratio)))
+    return(gsize/gcsize)
+}
+
+legend_pt_size =4
+plot_title_size = 25
+axis_text_size = 25
+axis_title_size=25
+legend_text_size=25
+plot_text = 10
+spacing=1
+chosen_margin = c(0.5,1,0.5,1)# margins:top,right,bottom,left
+theme_violin = theme_bw() +
+    theme(
+        plot.title = element_text(hjust = 0, face = "bold", size = plot_title_size),
+        plot.margin = margin(5, 5, 3, 5),   # reduced bottom margin
+        legend.text = element_text(size = 25),
+        legend.key.height = unit(spacing, "cm"),
+        legend.position = "none",
+        legend.spacing.y = unit(0.5, 'cm'),
+        legend.title = element_blank(),
+        axis.title.x = element_text(size = 20, margin = margin(t = 5)),
+        axis.text.x = element_text(
+            size = 20, margin = margin(t = 0)
+        ),
+        axis.title.y = element_text(size = 25),
+        axis.text.y = element_text(size = 20)
+    )
+
+my_SC_VIOLIN_fun = function(goi){
+  midx = match(goi, colnames(mydf2)
+  ggdf = mydf2
+  ggdf$gene = mydf2[, midx]
+  g1 = ggplot(mydf2, aes( x = cluster, y = gene, fill = cluster)) + geom_violin() + 
+     scale_fill_manual( values = c( "aquamarine2", "pink2")) + 
+     geom_boxplot(width = 0.2, fill = "white", color = "black", 
+                 alpha = 0.7, outlier.shape = NA)  +
+     ggtitle(goi) + ylab("log2(TPM+1)") + xlab("") +
+     theme_violin
+}
+
+immune_genes = c("WIPF1;GMFG;CLEC10A;C4BPA;C4BPB;SLA2;C3AR1;GBP5;MEF2C;PRKCB;RNASE6;MCEMP1;RNASE3;RNASE2;RNASE1;UNC13D;BIN2;PADI2;SERPING1;CFH;CFI;FPR1;GATA3;FPR2;IQGAP2;MEFV;IL22RA2;C3;NCKAP1L;ICOS;HLA-DQA2;HLA-DQA1;ELANE;HLA-DRB5;FYB1;FN1;NFATC2;LYZ;TREML1;COL1A2;TCN1;TNFSF4;TNFSF8;HLA-DRB1;ARHGAP9;PIGR;ITK;SIGLEC9;SERPINA1;MRC2;MRC1;TIMP2;OLR1;CTLA4;TIMP1;JAK3;HLA-DPA1;HAVCR2;NFAM1;MMP12;FCER2;CD200R1;TLR10;PLEKHO2;HLA-DQB2;CCL11;PTAFR;HLA-DMA;HLA-DMB;ALOX5;STAT4;CCL19;IL12RB1;CCL17;AOC1;CCL22;IL10RA;IGLL5;STING1;SIGLEC1;SIGLEC8;SIGLEC7;SIGLEC6;SIGLEC5;CRLF2;CSF2;CSF3R;CSF1;NCF1;NCF2;NCF4;RORC;IL5RA;F13A1;TNF;STK10;GRAP2;CLEC5A;IL13RA2;HLA-DOA;TNFRSF4;CISH;CD180;OLFM4;CLEC4A;CLEC4C;RAB31;CLEC4D;JAML;RAB37;ADAM8;CLEC4E;S100A7;CSF1R;CPB2;HVCN1;LY96;TNFRSF11B;GPR84;CD300LB;BTLA;TNFRSF17;CD300LF;CD300LG;TNFRSF9;DEFA4;ZBTB16;LY86;CXCL10;PTPRB;PTPRC;CLEC6A;HLA-DRA;SNAP25;CIITA;ITGAM;FLT3;ITGB2;TREM2;PTPN22;ITGAL;TREM1;FCAR;TNFSF13B;S100A7A;ITGAX;ITGB7;CR2;CR1;ITGA4;SGIP1;TNFRSF1B;LCK;NPC2;IL3RA;PECAM1;BPI;LCP2;BIRC3;C1S;SFTPA2;C1R;FGL2;NLRC3;NLRC4;IL2RG;TSPAN32;CCL5;CCL4;IL21R;CEACAM21;CCL2;FCGR1A;SH2B3;P2RX7;GZMM;FCGR2A;IL2RA;P2RX1;IL2RB;MNDA;PDCD1;CD247;FOLR3;FCGR2B;IFITM2;ICAM2;ICAM3;IFIT3;ICAM1;IFIT2;C4B;C4A;MT2A;ANPEP;RPS6KA2;TBC1D10C;TNFSF11;IL12B;B2M;TRIM22;RSAD2;IL1R1;FBXO2;SLC11A1;HLA-B;HLA-G;CHIT1;PLPP4;CRISPLD2;BTK;CD226;ATP6V0D2;EBI3;CD1E;CD1C;CD1B;SEC14L2;CD79B;CD79A;INPP5D;SLAMF7;SLAMF6;CCR1;SIGLEC15;SIGLEC14;PTPRN2;TNFSF14;SIGLEC12;TNFSF12;SH2D1A;SIGLEC10;PPBP;PILRA;BPIFB2;VNN1;BPIFB1;CD209;CD207;CD28;CD27;CD22;IL21;ORM1;IL20;TNFRSF13B;IL26;SH3KBP1;IL27;C8B;CD3E;ORM2;CD3D;CTSS;EDA2R;CTSO;CTSL;CTSK;RAC2;FCER1A;CTSH;CTSG;CCR6;CTSE;CCR5;CD33;CCR2;IL10;CD53;FCER1G;BTN3A1;IL16;BTN3A3;NCR1;NCR3;TLR8;TLR7;TLR4;TLR2;C1QB;LILRA6;C1QA;WAS;LILRA1;LILRA2;LILRA4;LILRA5;CXCR1;LAIR2;LAIR1;IL32;CD74;CD70;LILRB1;LILRB2;LILRB4;LILRB5;BATF;CD40LG;QPCT;DLC1;SAA2;C1QC;FCN1;CD86;FCN3;CD80;IL18RAP;COTL1;SIRPA;ZBP1;CD96;CD93;CD300A;CYBB;OSCAR;TYROBP;DOK3;CD8A;CD300E;CD300C;UBA7;KLRB1;C5AR2;C5AR1;PLD4;CSF2RB;RASGRP2;AGER;CSF2RA;RASGRP4;RASGRP3;ADGRG3;NLRP4;ALDH3B1;NLRP3;VCAM1;CRTAM;ADA2;IL2;SMAD7;SELL;GDNF;IL7R;MS4A3;TNFAIP6;TNFAIP3;SLC2A5;CXCL2;SIRPB1;OASL;ADGRE5;ADGRE3;FGB;FGA;MMP1;MMP2;MMP3;FGG;PLAUR;IRAK3;MMP8;MMP9;DNM3;FGR;ZAP70;IRF4;LTA;CHI3L1;IRF8;LTB;MS4A2;DEFB4A;DOCK2;LTF;COLEC12;RETN;SAMHD1;IL1RL1;MUC2;S1PR1;GBP4;KLRG1;TRAT1;PLA2G2A;MUC5B;S100B;CD4;PTX3;VIM")
+immune_genes = unlist(strsplit(immune_genes, ";"))
+lfc_cutoff = log2(1.5)
+```
+## Small cell lung cancer Figures
+
+```{r}
+## Show regions on pacmap               
+pacmap = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
+pacmap$cluster = "NA"
+pacmap$cluster[ which(pacmap$cohorts =="SC")] <- "cohortSC"
+pacmap$cluster[which(pacmap$cohorts =="MD2")] <- "cohortMD2"
+
+o2 <- ggplot(pacmap, aes(PaCMAP1, PaCMAP2, color = cluster)) +
+    geom_point(size = 3) +
+    geom_point(
+        data = subset(pacmap, DISEASE == "Small Cell Lung Cancer" & cluster == "cohortMD2"),
+        aes(PaCMAP1, PaCMAP2), color = "black", size = 3 ) +
+    scale_color_manual( values = c( cohortSC = "pink2", cohortMD2 = "aquamarine2" ), na.value = "gray90" ) +
+    theme_classic() +
+    theme( legend.position = "right", legend.text = element_text(size = 20) ) + 
+    ggtitle("Clusters")
+
+pdf("Figures/pacamp_sc_subset.pdf", width = 7, height = 7)
+print(o2)
+dev.off()
+
+# Violin plots showing gene expression figs in both regions.               
+gene_exp_file =  readRDS("log2tpm.rds")
+mydf = cbind( pacmap, t(gene_exp_file[ c("YAP1", "VIM", "WWTR1", "CCN1", "CCN2", "ANKRD1", "AMOTL2", "ETS1", "FAT4", "LATS2"), ]))
+mydf2 = mydf[ which(mydf$cluster %in% c("cohortSC", "cohortMD2")) , ]
+mydf2 = mydf2[which(mydf2$DISEASE=="Small Cell Lung Cancer"), ]
+mydf2[which(mydf2$cluster=="cohortSC"), "cluster" ] = "SC"
+mydf2[which(mydf2$cluster=="cohortMD2"), "cluster" ] = "MD2-SCLC"
+
+g1 = my_SC_VIOLIN_fun("YAP1")
+g2 = my_SC_VIOLIN_fun("VIM")
+g3 = my_SC_VIOLIN_fun("WWTR1")
+g4 = my_SC_VIOLIN_fun("CCN1")
+g5 = my_SC_VIOLIN_fun("CCN2")
+g6 = my_SC_VIOLIN_fun("ETS1")
+g7 = my_SC_VIOLIN_fun("FAT4")
+g8 = my_SC_VIOLIN_fun("LATS2")  
+               
+pdf("Figures/Violin_plots_sc1_vs_sc2.pdf", width = 15 , height = 8)
+ggarrange( plotlist = list( g1, g2, g3, g4, g5, g6, g7, g8), nrow = 2, ncol = 4)
+dev.off()
+
+## DotPlot 
+sc2_up = lapply(1:6, function(x) as.data.frame(read_xlsx( "Enrichr_down_SC_vs_MD2_sclc.xlsx", sheet = x)))
+sc1_up = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_up_SC_vs_MD2_sclc.xlsx" , sheet = x)))
+
+chosen_pathways = c(
+    "B cell receptor signaling pathway",  
+    "T cell receptor signaling pathway", 
+    "JAK-STAT signaling pathway",
+    "Natural killer cell mediated cytotoxicity",
+    "Ras signaling pathway",
+    "PD-L1 expression and PD-1 checkpoint pathway in cancer",
+    "IL-17 signaling pathway",
+    "FoxO signaling pathway",    
+    "Cell Cycle, Mitotic R-HSA-69278",   
+    "Cell Cycle Checkpoints R-HSA-69620",
+    "Mitotic Prometaphase R-HSA-68877",
+    "G1/S-Specific Transcription R-HSA-69205",
+    "G2/M Checkpoints R-HSA-69481",
+    "Activation Of ATR In Response To Replication Stress R-HSA-176187",
+    "Separation Of Sister Chromatids R-HSA-2467813"    )               
+
+temp_a1 = sc1_up[[5]]
+temp_a2 = sc2_up[[4]]
+temp_a1$cluster = "SC"
+temp_a2$cluster = "MD2-SCLC"
+
+df2 = rbind(temp_a1, temp_a2)
+df2 = df2[which(df2[,1] %in%  chosen_pathways), ]
+df2$FDR.q.value= as.numeric(df2$Adjusted.P.value)
+df2$p.adjust = -log10(df2$FDR.q.value)
+df2= df2[order(df2$p.adjust, decreasing=TRUE), ]
+df2$GeneRatio <- parse_ratio(df2$Overlap)
+                
+# wrap long pathway names                 
+df2[which(df2$Term =="PD-L1 expression and PD-1 checkpoint pathway in cancer"), "Term"] = "PD-1 checkpoint pathway"
+df2[which(df2$Term =="Activation Of ATR In Response To Replication Stress R-HSA-176187"), "Term"] = "Activation Of ATR To Replication Stress"
+df2$Description = sapply(strsplit(df2$Term, " R-HSA-"), function(x) x[1])
+chosen_pathways_small = sapply(strsplit(chosen_pathways, " R-HSA-"), function(x) x[1])
+chosen_pathways_small[ which(chosen_pathways_small=="PD-L1 expression and PD-1 checkpoint pathway in cancer")] = "PD-1 checkpoint pathway"
+chosen_pathways_small[ which(chosen_pathways_small=="Activation Of ATR In Response To Replication Stress")] = "Activation Of ATR To Replication Stress"
+df2$Description <- factor(df2$Description, levels=chosen_pathways_small)
+
+w0 = ggplot(df2, aes(x=cluster, y=Description, size=GeneRatio, color=p.adjust)) +
+    geom_point() + ggtitle("") + 
+    scale_color_gradient(low="red", high="blue") +
+    ylab("") + xlab("-log10(p.adjust)") +
+    theme_dose(12)
+
+pdf(file.path(  "Figures/dotplot_sc1_vs_sc2.pdf"), width = 6, height =5)
+print(w0)
+dev.off()    
+
+## Volcano plot :
+deg_file = "DEG_SSC_vs_MD2_sclc.xlsx"                               
+resdf = as.data.frame(read_xlsx(deg_file, sheet = 1))
+up_genes = as.data.frame(read_xlsx(deg_file, sheet = 2)) 
+down_genes = as.data.frame(read_xlsx(deg_file, sheet = 3))           
+
+goi = c("YAP1, WWTR1, Ctgf, Cyr61, ANKRD1, AMOTL2, Zfp367, MYBL2, DACH1, TFDP1, ETS1, FOXM1, BACH2")
+goi = unlist(strsplit(goi, ", "))
+goi = c("TEAD1", "TEAD2", "TEAD3", "TEAD4",  "LATS1", "LATS2", "STK3", "STK4", "NF2", "FAT1", "FAT2", "FAT3", "FAT4", "TAOK1", "TAOK2" , "TAOK3", goi)
+goi = c(toupper(goi), "CCN1", "CCN2", "ETS1", "VIM")
+goi = intersect(goi, down_genes[,1])
+
+pdf(file.path( "Figures/Volcano_plot_sc1_vs_sc2_with_yap1.pdf"), width = 5, height =5 )                   
+resdf$log10padj = -log10(resdf$padj)
+resdf$sig = NA_character_
+resdf$sig[which( resdf$padj<.05 & abs(resdf$log2FoldChange)>lfc_cutoff)] = "sig"
+table(resdf$sig)
+
+with(resdf, plot(log2FoldChange, log10padj, pch=20, col ="grey80",main=paste0("Volcano plot: SC1 vs SC2") ))
+with(subset(resdf, padj<.05 & log2FoldChange>lfc_cutoff), points(log2FoldChange, log10padj, pch=20, col="pink"))
+with(subset(resdf, padj<.05 & log2FoldChange < -lfc_cutoff), points(log2FoldChange, log10padj, pch=20, col="lightgreen"))
+abline(v = lfc_cutoff , col = "black", lty = 2)
+abline(v = -lfc_cutoff, col = "black", lty = 2)
+abline(h = -log10(0.05), col = "black", lty = 2)
+
+resdf$delabel = NA_character_
+resdf$delabel[match( immune_genes, resdf$gene)] = "yes"
+resdf$delabel[which(resdf$delabel=="yes" & resdf$sig =="sig")] = "sig immune"
+with(subset(resdf[which(resdf$delabel=="sig immune"), ]), points(log2FoldChange, log10padj, pch=20, col="steelblue3"))
+
+resdf$delabel = NA_character_
+resdf$delabel[match( goi, resdf$gene)] = "yes"
+resdf$delabel[which(resdf$delabel=="yes" & resdf$sig =="sig")] =  "yap"
+with(subset(resdf[which(resdf$delabel=="yap"), ]), points(log2FoldChange, log10padj, pch=20, col="black"))
+dev.off()                               
+                               
+```
+## Squamous cell carcinoma plots 
+```{r}
+## make dotplot for pathways                               
+a1 = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_up_SQ1_vs_SQ2.xlsx", sheet = x)))
+a2 = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_down_SQ1_vs_SQ2.xlsx", sheet = x)))
+
+chosen_pathways = c(
+ "Platelet Activation, Signaling And Aggregation R-HSA-76002", 
+ "Innate Immune System R-HSA-168249"  ,              
+ "Cytokine Signaling In Immune System R-HSA-1280215",
+ "Adaptive Immune System R-HSA-1280218"      ,
+ "Signaling By GPCR R-HSA-372790",
+ "Collagen Formation R-HSA-1474290",
+ "PD-1 Signaling R-HSA-389948",
+ "Signaling By Receptor Tyrosine Kinases R-HSA-9006934",
+ "PI3K/AKT Signaling In Cancer R-HSA-2219528",
+ "MAPK1/MAPK3 Signaling R-HSA-5684996",
+ "Interleukin-2 Family Signaling R-HSA-451927",     
+ "PRC2 Methylates Histones And DNA R-HSA-212300",            
+ "DNA Damage/Telomere Stress Induced Senescence R-HSA-2559586",
+ "DNA Methylation R-HSA-5334118" ,                    
+ "Aspirin ADME R-HSA-9749641",
+ "Drug ADME R-HSA-9748784",    
+ "Paracetamol ADME R-HSA-9753281",
+ "Biological Oxidations R-HSA-211859", 
+ "RNA Polymerase I Transcription R-HSA-73864")
+
+ # ADME stands for Absorption, Distribution, Metabolism, and Excretion—the four key pharmacokinetic stages determining how a drug acts on the body. 
+temp_a1 = a1[[5]]
+temp_a2 = a2[[5]]
+temp_a1$cluster = "SQ1"
+temp_a2$cluster = "SQ2"
+df2 = rbind(temp_a1, temp_a2)
+df2[which(df2$Term =="DNA Damage/Telomere Stress Induced Senescence R-HSA-2559586"), "Term"] = "DNA Damage"
+
+df2 = df2[which(df2[,1] %in%  chosen_pathways), ]
+df2$FDR.q.value= as.numeric(df2$Adjusted.P.value)
+df2$p.adjust = -log10(df2$FDR.q.value)
+df2= df2[order(df2$p.adjust, decreasing=TRUE), ]
+df2$GeneRatio <- parse_ratio(df2$Overlap)
+            
+# wrap long pathway names            
+df2$Description = sapply(strsplit(df2$Term, " R-HSA-"), function(x) x[1])
+chosen_pathways_small = sapply(strsplit(chosen_pathways, " R-HSA-"), function(x) x[1])
+chosen_pathways_small[ which(chosen_pathways_small=="DNA Damage/Telomere Stress Induced Senescence")] = "DNA Damage"
+df2$Description <- factor(df2$Description, levels=chosen_pathways_small)
+
+w0 = ggplot(df2, aes(x=cluster, y=Description, size=GeneRatio, color=p.adjust)) +
+    geom_point() + ggtitle("") + 
+    scale_color_gradient(low="red", high="blue") +
+    ylab("") + xlab("-log10(p.adjust)") +
+    theme_dose(12)
+
+pdf( "Figures/dotplot_sq1_vs_sq2.pdf"), width = 6, height =5)
+print(w0)
+dev.off()   
+
+## volcano plot.                         
+resdf = as.data.frame(read_xlsx("DEG_SQ1_vs_SQ2.xlsx", sheet = 1))                      
+goi = c("NTRK2", "BDNF", "SLC7A11", "GCLC", "SOX2", "TP63")
+
+pdf(file.path( "Figures/Volcano_plot_sq1_vs_sq2_with_ntrk2.pdf"), width = 5, height =5 )                  
+resdf$log10padj = -log10(resdf$padj)
+
+with(resdf, plot(log2FoldChange, log10padj, pch=20, col ="grey80",main=paste0("Volcano plot: SQ1 vs SQQ2") ))
+with(subset(resdf, padj<.05 & log2FoldChange>lfc_cutoff), points(log2FoldChange, log10padj, pch=20, col="pink"))
+with(subset(resdf, padj<.05 & log2FoldChange < -lfc_cutoff), points(log2FoldChange, log10padj, pch=20, col="lightgreen"))
+abline(v = lfc_cutoff , col = "black", lty = 2)
+abline(v = -lfc_cutoff, col = "black", lty = 2)
+abline(h = -log10(0.05), col = "black", lty = 2)
+
+resdf$delabel = NA_character_
+resdf$delabel[match( immune_genes, resdf$gene)] = "yes"
+with(subset(resdf[which(resdf$delabel=="yes"), ]), points(log2FoldChange, log10padj, pch=20, col="steelblue3"))
+
+resdf$delabel = NA_character_
+resdf$delabel[match( goi, resdf$gene)] = "ntrk"
+with(subset(resdf[which(resdf$delabel=="ntrk"), ]), points(log2FoldChange, log10padj, pch=20, col="black"))
+
+dev.off()                         
+```
+## Adeno dotplots 
+```{r}
+a1_up = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_up_A1_vs_A2.xlsx", sheet = x)))
+a2_up = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_down_A1_vs_A2.xlsx", sheet = x)))
+a3_up = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_down_A1_vs_A3.xlsx", sheet = x)))
+a4_up = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_down_A1_vs_A4.xlsx", sheet = x)))
+a5_up = lapply(1:6, function(x) as.data.frame(read_xlsx("Enrichr_down_A1_vs_MD1.xlsx", sheet = x)))
+a6_up = lapply(1:6,function(x) as.data.frame(read_xlsx("Enrichr_up_MD2_vs_A2.xlsx", sheet = x)) )
+
+chosen_pathways = c(
+    "Innate Immune System R-HSA-168249" ,    # a1 and md2-adeno                                               
+    "Adaptive Immune System R-HSA-1280218"   ,
+    "Signaling By GPCR R-HSA-372790",
+    "Neutrophil Degranulation R-HSA-6798695", 
+    "Signaling By Interleukins R-HSA-449147", 
+    "PD-1 Signaling R-HSA-389948",
+    "Interferon Gamma Signaling R-HSA-877300",
+    "Complement Cascade R-HSA-166658", # only md2-adeno
+    "Peptide Hormone Metabolism R-HSA-2980736" , 
+    "MHC Class II Antigen Presentation R-HSA-2132295" , 
+    "Metabolism Of Lipids R-HSA-556833",  # up in A2
+    "Fatty Acid Metabolism R-HSA-8978868",
+    "Metabolism Of Amino Acids And Derivatives R-HSA-71291",
+    "Metabolism Of Vitamins And Cofactors R-HSA-196854",
+    "Potassium Channels R-HSA-1296071", # up in A3
+    "Voltage Gated Potassium Channels R-HSA-1296072", 
+    "Ion Channel Transport R-HSA-983712", 
+    "Neurotransmitter Receptors And Postsynaptic Signal Transmission R-HSA-112314", 
+    "Drug ADME R-HSA-9748784",    
+    "Aspirin ADME R-HSA-9749641",  # UP IN a4
+    "Synthesis Of Bile Acids And Bile Salts Via 27-Hydroxycholesterol R-HSA-193807", 
+    "Cellular Response To Chemical Stress R-HSA-9711123", 
+    "Cell Cycle, Mitotic R-HSA-69278",
+    "S Phase R-HSA-69242",
+    "M Phase R-HSA-68886",
+    "Unwinding Of DNA R-HSA-176974",
+    "DNA Replication R-HSA-69306"
+)
+
+temp_a1 = a1_up[[5]]
+temp_a2 = a2_up[[5]]
+temp_a3 = a3_up[[5]]
+temp_a4 = a4_up[[5]]
+temp_a5 = a5_up[[5]]
+temp_md2_adeno = a6[[5]]
+
+temp_a1$cluster = "A1"
+temp_a2$cluster = "A2"
+temp_a3$cluster = "A3"
+temp_a4$cluster = "A4"
+temp_a5$cluster = "MD1"
+temp_md2_adeno$cluster = "MD2"
+            
+df2 = rbind(temp_a1, temp_a2, temp_a3, temp_a4, temp_a5, temp_md2_adeno)
+df2 = df2[which(df2[,1] %in%  chosen_pathways), ]
+df2$FDR.q.value= as.numeric(df2$Adjusted.P.value)
+df2$p.adjust = -log10(df2$FDR.q.value)
+df2= df2[order(df2$p.adjust, decreasing=TRUE), ]
+df2$GeneRatio <- parse_ratio(df2$Overlap)
+            
+# wrap long pathway names             
+df2[which(df2$Term =="Metabolism Of Amino Acids And Derivatives R-HSA-71291"), "Term"] = "Metabolism Of Amino Acids"
+df2[which(df2$Term =="Synthesis Of Bile Acids And Bile Salts Via 27-Hydroxycholesterol R-HSA-193807"), "Term"] = "Synthesis Of Bile Acids And Bile Salts"
+df2[which(df2$Term =="Neurotransmitter Receptors And Postsynaptic Signal Transmission R-HSA-112314"), "Term"] = "Neurotransmitter Receptors"
+df2$Description = sapply(strsplit(df2$Term, " R-HSA-"), function(x) x[1])
+chosen_pathways_small = sapply(strsplit(chosen_pathways, " R-HSA-"), function(x) x[1])
+chosen_pathways_small[ which(chosen_pathways_small=="Metabolism Of Amino Acids And Derivatives")] = "Metabolism Of Amino Acids"
+chosen_pathways_small[ which(chosen_pathways_small=="Synthesis Of Bile Acids And Bile Salts Via 27-Hydroxycholesterol")] = "Synthesis Of Bile Acids And Bile Salts"
+chosen_pathways_small[ which(chosen_pathways_small=="Neurotransmitter Receptors And Postsynaptic Signal Transmission")] = "Neurotransmitter Receptors"
+df2$Description <- factor(df2$Description, levels=rev(chosen_pathways_small))
+
+df2$cluster = factor(df2$cluster, levels = c("A1", "MD2", "A2", "A3", "A4", "MD1"))
+w0 = ggplot(df2, aes(x=cluster, y=Description, size=GeneRatio, color=p.adjust)) +
+    geom_point() + ggtitle("") + 
+    scale_color_gradient(low="red", high="blue") +
+    ylab("") + xlab("") +
+    theme_dose(12) 
+                               
+pdf(file.path(  "Figures/dotplot_adeno_regions.pdf"), width = 6.5, height =5)
+print(w0)
+dev.off()                               
+```                         
+                               
+                               
