@@ -1,0 +1,177 @@
+---
+title: "Reproducing Differential gene expression analysis from the paper"
+author: "Sonali Arora, Laavan Suresh"
+date: "March 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r}
+library(writexl)
+library(enrichR)
+library(DESeq2)
+
+my_enrichment_function = function(goi, title, resdir){
+  dbs <- c("GO_Molecular_Function_2023", "GO_Cellular_Component_2023",
+           "GO_Biological_Process_2023", "KEGG_2021_Human", "Reactome_2022", "BioCarta_2016")
+  enriched = enrichr( goi, dbs)
+  enriched = lapply(enriched, function(x) x[which(x$Adjusted.P.value < 0.05), ])
+  write_xlsx(x = enriched, path = file.path(resdir, paste0(title, ".xlsx")) )
+  enriched
+}
+
+
+pacmap = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+dataMtrx = readRDS("raw_batch_corrected_counts.rds")
+identical(rownames(pacmap), colnames(raw_bc_counts))
+resdir = "DEG_analysis"
+                    
+test_clusters = c("A2", "A3", "A4", "SC", "MD1")
+                    
+lapply(test_clusters, function(x) {
+  pacmap$cluster = "Other"
+  pacmap$cluster[pacmap$sampleName %in% cohort] = "A1"
+  pacmap$cluster[pacmap$sampleName %in% cohort] = x
+  dds <- DESeqDataSetFromMatrix(countData = round(dataMtrx),
+                                colData = pacmap, design = ~cluster)
+  keep <- rowSums(counts(dds)) >= 4
+  table(keep)
+  dds = dds[keep, ]
+  dds = DESeq(dds)
+  resultsNames(dds)
+
+  lfc = 0.58
+  res1 <- results(dds, alpha = 0.05, lfcThreshold=lfc, contrast = c("cluster", "A1", x))
+  summary(res1)
+  resdf = as.data.frame(res1)
+  raw_counts = dataMtrx[rownames(resdf), ]
+  cpm_counts = cpm(raw_counts)
+  colnames(raw_counts) = paste0("raw_", colnames(raw_counts))
+  colnames(cpm_counts) = paste0("cpm_", colnames(cpm_counts))
+
+  avg_mat = cbind(rowMeans(cpm_counts[, which(pacmap$cluster=="A1")]),
+                  rowMeans(cpm_counts[, which(pacmap$cluster==x)]))
+  colnames(avg_mat) = paste0("CPM_Avg_", c("A1", x))
+  resdf = cbind(gene = rownames(resdf), resdf[, c("log2FoldChange", "pvalue", "padj")] , avg_mat)
+
+  up_genes = resdf[which(resdf$log2FoldChange > lfc &  resdf$padj < 0.05), ]
+  down_genes = resdf[which(resdf$log2FoldChange < -lfc &  resdf$padj < 0.05), ]
+
+  #ordered lfc
+  up_genes = up_genes[order(up_genes$log2FoldChange, decreasing=T), ]
+  down_genes = down_genes[order(down_genes$log2FoldChange), ]
+ 
+  lst = list(all_DE_results = resdf,
+             deseq2_up_genes = up_genes,
+             deseq2_down_genes = down_genes)
+  write_xlsx(x = lst, path = paste0("DEG_A1_vs_", x, ".xlsx"))
+
+  saveRDS(dds, paste0("dds2_A1_vs_", x, ".rds"))
+
+  a1 = my_enrichment_function( up_genes$gene, paste0("Enrichr_up_A1_vs_", x), resdir)
+  a2 = my_enrichment_function( down_genes$gene, paste0("Enrichr_down_A1_vs_", x), resdir)
+
+})
+                    
+```
+## SC analysis 
+```{r}
+# SC1 vs SC2 (only SCLC samples included in SC2)
+pacmap = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+                    
+sclc = pacmap %>% filter(DISEASE == "Small Cell Lung Cancer")
+sclc = sclc$sampleName
+SC2_sclc = MD2[MD2 %in% sclc] # Should be 34
+
+pacmap$cluster = "Other"
+pacmap$cluster[pacmap$sampleName %in% SC1] = "SC"
+pacmap$cluster[pacmap$sampleName %in% SC2_sclc] = "MD2_sclc"
+dds <- DESeqDataSetFromMatrix(countData = round(dataMtrx),
+                              colData = pacmap, design = ~cluster)
+keep <- rowSums(counts(dds)) >= 4
+table(keep)
+dds = dds[keep, ]
+dds = DESeq(dds)
+resultsNames(dds)
+
+lfc = 0.58
+res1 <- results(dds, alpha = 0.05, lfcThreshold=lfc, contrast = c("cluster", "SC", "MD2_sclc"))
+summary(res1)
+resdf = as.data.frame(res1)
+raw_counts = dataMtrx[rownames(resdf), ]
+cpm_counts = cpm(raw_counts)
+colnames(raw_counts) = paste0("raw_", colnames(raw_counts))
+colnames(cpm_counts) = paste0("cpm_", colnames(cpm_counts))
+
+avg_mat = cbind(rowMeans(cpm_counts[, which(pacmap$cluster=="SC")]),
+                rowMeans(cpm_counts[, which(pacmap$cluster=="MD2_sclc")]))
+colnames(avg_mat) = paste0("CPM_Avg_", c("SC", "MD2_sclc"))
+resdf = cbind(gene = rownames(resdf), resdf[, c("log2FoldChange", "pvalue", "padj")] , avg_mat)
+
+up_genes = resdf[which(resdf$log2FoldChange > lfc &  resdf$padj < 0.05), ]
+down_genes = resdf[which(resdf$log2FoldChange < -lfc &  resdf$padj < 0.05), ]
+
+#ordered lfc
+up_genes = up_genes[order(up_genes$log2FoldChange, decreasing=T), ]
+down_genes = down_genes[order(down_genes$log2FoldChange), ]
+
+
+lst = list(all_DE_results = resdf,
+           deseq2_up_genes = up_genes,
+           deseq2_down_genes = down_genes)
+write_xlsx(x = lst, path = paste0("DEG_SC_vs_MD2_sclc.xlsx"))
+
+saveRDS(dds, paste0("dds2_SC_vs_MD2_sclc.rds"))
+
+a1 = my_enrichment_function( up_genes$gene, paste0("Enrichr_up_SC_vs_MD2_sclc.xlsx"), resdir)
+a2 = my_enrichment_function( down_genes$gene, paste0("Enrichr_down_SC1_vs_SC2_sclc.xlsx"), resdir)
+                 
+```                   
+## Squamous cell carcinoma analysis 
+```{r}
+# Sq1 vs Sq2 
+pacmap = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)    
+pacmap$cluster = "Other"
+pacmap$cluster[pacmap$sampleName %in% SQ1] = "SQ1"
+pacmap$cluster[pacmap$sampleName %in% SQ2] = "SQ2"
+dds <- DESeqDataSetFromMatrix(countData = round(dataMtrx),
+                              colData = pacmap, design = ~cluster)
+keep <- rowSums(counts(dds)) >= 4
+table(keep)
+dds = dds[keep, ]
+dds = DESeq(dds)
+resultsNames(dds)
+
+lfc = 0.58
+res1 <- results(dds, alpha = 0.05, lfcThreshold=lfc, contrast = c("cluster", "SQ1", "SQ2"))
+summary(res1)
+resdf = as.data.frame(res1)
+raw_counts = dataMtrx[rownames(resdf), ]
+cpm_counts = cpm(raw_counts)
+colnames(raw_counts) = paste0("raw_", colnames(raw_counts))
+colnames(cpm_counts) = paste0("cpm_", colnames(cpm_counts))
+
+avg_mat = cbind(rowMeans(cpm_counts[, which(pacmap$cluster=="SQ1")]),
+                rowMeans(cpm_counts[, which(pacmap$cluster=="SQ2")]))
+colnames(avg_mat) = paste0("CPM_Avg_", c("SQ1", "SQ2"))
+resdf = cbind(gene = rownames(resdf), resdf[, c("log2FoldChange", "pvalue", "padj")] , avg_mat)
+                    
+up_genes = resdf[which(resdf$log2FoldChange > lfc &  resdf$padj < 0.05), ]
+down_genes = resdf[which(resdf$log2FoldChange < -lfc &  resdf$padj < 0.05), ]
+
+#ordered lfc
+up_genes = up_genes[order(up_genes$log2FoldChange, decreasing=T), ]
+down_genes = down_genes[order(down_genes$log2FoldChange), ]
+
+lst = list(all_DE_results = resdf,
+           deseq2_up_genes = up_genes,
+           deseq2_down_genes = down_genes)
+write_xlsx(x = lst, path = paste0("DEG_SQ1_vs_SQ2.xlsx"))
+
+saveRDS(dds, paste0("dds2_SQ1_vs_SQ2_sclc.rds"))
+
+a1 = my_enrichment_function( up_genes$gene, paste0("Enrichr_up_SQ1_vs_SQ2.xlsx"), resdir)
+a2 = my_enrichment_function( down_genes$gene, paste0("Enrichr_down_SQ1_vs_SQ2.xlsx"), resdir)
+```                    
