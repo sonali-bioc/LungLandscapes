@@ -10,6 +10,64 @@ output:
 
 In this vignette, we recreate all the pathway GSVA plots from the paper. 
 
+# Analysis 
+```{r}
+library(GSVA)
+library(clusterProfiler) #for read.gmt function
+extdata = "~/HollandLabShared/DATASETS_CLEAN_from_Sonali/msigdb"
+
+kegg_db <- read.gmt(file.path(extdata, "c2.cp.kegg.v7.2.symbols.gmt"))
+biocarta_db <- read.gmt(file.path(extdata, "c2.cp.biocarta.v7.2.symbols.gmt"))
+reactome_db <- read.gmt(file.path(extdata, "c2.cp.reactome.v7.2.symbols.gmt"))
+go_bp = read.gmt(file.path(extdata, "c5.go.bp.v7.2.symbols.gmt"))
+
+kegg_lst= split(kegg_db, kegg_db[,1])
+kegg_lst = lapply(kegg_lst, function(x) x[,2])
+
+biocarta_lst= split(biocarta_db, biocarta_db[,1])
+biocarta_lst = lapply(biocarta_lst, function(x) x[,2])
+
+reactome_lst= split(reactome_db, reactome_db[,1])
+reactome_lst = lapply(reactome_lst, function(x) x[,2])
+
+go_bp= split(go_bp, go_bp[,1])
+go_bp = lapply(go_bp, function(x) x[,2])
+
+tft_db= split(tft_db, tft_db[,1])
+tft_db = lapply(tft_db, function(x) x[,2])
+
+hallmark= split(hallmark, hallmark[,1])
+hallmark = lapply(hallmark, function(x) x[,2])
+
+umap_data2 = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+counts = readRDS("log2tpm.rds")
+
+gsvapar <- gsvaParam(vst_counts, kegg_lst, maxDiff=TRUE)
+kegg_res <- gsva(gsvapar) 
+
+gsvapar <- gsvaParam(vst_counts, biocarta_lst, maxDiff=TRUE)
+biocarta_res <- gsva(gsvapar)
+
+gsvapar <- gsvaParam(vst_counts, reactome_lst, maxDiff=TRUE)
+reactome_res <- gsva(gsvapar)
+
+gsvapar <- gsvaParam(vst_counts, go_bp, maxDiff=TRUE)
+gobp_res <- gsva(gsvapar)
+
+gsvapar <- gsvaParam(vst_counts, tft_db, maxDiff=TRUE)
+tft_res <- gsva(gsvapar)
+
+gsvapar <- gsvaParam(vst_counts, hallmark, maxDiff=TRUE)
+hallmark_res <- gsva(gsvapar)
+
+score = rbind(tft_res, gobp_res, hallmark_res, reactome_res, biocarta_res, kegg_res)
+saveRDS(score , file = file.path(Resdir, paste0("pathways.rds")) )
+
+```
+
+
+# Visualization 
+
 ```{r}
 rm(list=ls())
 
