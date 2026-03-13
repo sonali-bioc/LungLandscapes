@@ -23,7 +23,7 @@ my_enrichment_function = function(goi, title, resdir){
 }
 
 
-pacmap = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+pacmap = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
 dataMtrx = readRDS("raw_batch_corrected_counts.rds")
 identical(rownames(pacmap), colnames(raw_bc_counts))
 resdir = "DEG_analysis"
@@ -79,7 +79,7 @@ lapply(test_clusters, function(x) {
 ## SC analysis 
 ```{r}
 # SC1 vs SC2 (only SCLC samples included in SC2)
-pacmap = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+pacmap = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
                     
 sclc = pacmap %>% filter(DISEASE == "Small Cell Lung Cancer")
 sclc = sclc$sampleName
@@ -132,7 +132,7 @@ a2 = my_enrichment_function( down_genes$gene, paste0("Enrichr_down_SC1_vs_SC2_sc
 ## Squamous cell carcinoma analysis 
 ```{r}
 # Sq1 vs Sq2 
-pacmap = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)    
+pacmap = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)    
 pacmap$cluster = "Other"
 pacmap$cluster[pacmap$sampleName %in% SQ1] = "SQ1"
 pacmap$cluster[pacmap$sampleName %in% SQ2] = "SQ2"
