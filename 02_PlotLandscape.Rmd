@@ -1,0 +1,322 @@
+---
+title: "Reproducing Fig1 from Paper"
+author: "Sonali Arora"
+date: "Narch 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r}
+
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(ggpubr)
+
+s1 = 2# size for points in PCA plot
+legend_pt_size =4
+plot_title_size = 25
+axis_text_size = 25
+axis_title_size=25
+legend_text_size=25
+plot_text = 10
+spacing=1
+chosen_margin = c(0.5,1,0.5,1)# margins:top,right,bottom,left
+theme_clean <- theme_bw() +
+    theme(
+        plot.title = element_text(hjust=0, vjust=0, 
+                                  lineheight=.8, face="bold", size=plot_title_size ),
+        plot.margin=unit(chosen_margin,"cm"), 
+        legend.text=element_text(size=legend_text_size),
+        legend.key.height = unit(spacing, "cm"),
+        legend.title=element_blank() , 
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
+
+qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+
+umap_data2 = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+
+dataset_plot2= ggplot(umap_data2 %>% arrange(desc(DATASET)),  aes(PaCMAP1, PaCMAP2, color=DATASET )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + #  +
+    theme_clean + 
+    guides(color=guide_legend(ncol=2))
+
+ggdf = umap_data2[ order(umap_data2$DISEASE), ]
+disease_plot2= ggplot(ggdf ,  aes(PaCMAP1, PaCMAP2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c( "orange", "blue", "darkgreen", "red")) +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+cohort_plot2= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(PaCMAP1, PaCMAP2, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + 
+    guides(color=guide_legend(ncol=2))
+
+
+mis1= ggplot(umap_data2 ,  aes(PaCMAP1, PaCMAP2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(umap_data2$DISEASE=="Adenocarcinoma"), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "orange", "grey90", "grey90", "grey90")) +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+mis2= ggplot(umap_data2 ,  aes(PaCMAP1, PaCMAP2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(umap_data2$DISEASE=="Non-Small Cell Lung Cancer"), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "grey90", "blue", "grey90", "grey90")) +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+
+mis3= ggplot(umap_data2 ,  aes(PaCMAP1, PaCMAP2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(umap_data2$DISEASE=="Small Cell Lung Cancer"), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "grey90", "grey90", "darkgreen", "grey90")) +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+mis4= ggplot(umap_data2 ,  aes(PaCMAP1, PaCMAP2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(umap_data2$DISEASE=="Squamous cell carcinoma"), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "grey90", "grey90",  "grey90", "red")) +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+## bar plots
+
+sp =split(umap_data2, umap_data2$cohorts)
+md1 = as.data.frame(table(sp[[5]]$DISEASE))
+md1[,2] = round(md1[,2]/63*100, 2)
+
+t1 = ggplot(md1, aes(x = "", y = Freq, fill = Var1)) + 
+    geom_col(color = "black", alpha =  0.25) +
+    coord_polar(theta = "y") + ggtitle("low gene ratio group") + 
+    theme_void()
+custom_colors <- c("orange", "blue", "darkgreen", "red")
+t1 = t1 + scale_fill_manual(values = custom_colors)
+
+md2 = as.data.frame(table(sp[[6]]$DISEASE))
+md2[,2] = round(md2[,2]/133*100, 2)
+
+t2 = ggplot(md2, aes(x = "", y = Freq, fill = Var1)) + 
+    geom_col(color = "black", alpha = 0.25) +
+    coord_polar(theta = "y") + ggtitle("low gene ratio group") + 
+    theme_void()
+t2 = t2 + scale_fill_manual(values = custom_colors)
+
+t1_text = t1+ geom_text(aes(label = Freq), size = 8,
+                        position = position_stack(vjust = 0.5)) 
+t2_text = t2+ geom_text(aes(label = Freq), size = 8,
+                        position = position_stack(vjust = 0.5)) 
+
+lst = list(dataset_plot2, disease_plot2,   cohort_plot2 , t1, t2  )
+pdf(file.path( "Figures/Multiplot_main_fig1_only_pacmap.pdf"),height = 20, width = 16)
+ggarrange( plotlist = lst, nrow =4, ncol =3)
+dev.off()
+
+# Supp Fig1 
+
+umap_cohort_plot2= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(VST_UMAP1_2d, VST_UMAP2_2d, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + 
+    guides(color=guide_legend(ncol=2))
+
+
+tsne_cohort_plot2= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(tSNE_1, tSNE_2, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + 
+    guides(color=guide_legend(ncol=2))
+
+stage_plot2= ggplot(umap_data2 %>% arrange(desc(AJCC_PATHOLOGIC_STAGE )),  aes(PaCMAP1, PaCMAP2, color=AJCC_PATHOLOGIC_STAGE )) +
+    geom_point(size=s1) +
+    geom_point(data =umap_data2[which(!is.na(umap_data2$AJCC_PATHOLOGIC_STAGE)), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c(col_vector[11:15] ), na.value ="grey90") +
+    theme_clean +
+    guides(color=guide_legend(ncol=2))
+
+grade_plot2= ggplot(umap_data2 %>% arrange(desc(GRADE )),  aes(PaCMAP1, PaCMAP2, color=GRADE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(!is.na(umap_data2$GRADE)), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c(col_vector[5:10] ), na.value ="grey90") +
+    theme_clean + 
+    guides(color=guide_legend(ncol=2))
+
+umap_data2$AGE = as.numeric(umap_data2$AGE)
+myPalette <- colorRampPalette(rev(brewer.pal(11, "RdYlBu")))
+sc2 <- scale_colour_gradientn(colours = myPalette(12), limits=c(0, 100), na.value = "grey90")
+age_plot2= ggplot(umap_data2 %>% arrange(desc(AGE )),  aes(PaCMAP1, PaCMAP2, color=AGE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(!is.na(umap_data2$AGE)), ], aes(PaCMAP1, PaCMAP2 ))+
+    sc2 + 
+    theme_clean + 
+    guides(color=guide_legend(ncol=1))
+
+race_plot2= ggplot(umap_data2 %>% arrange(desc(RACE )),  aes(PaCMAP1, PaCMAP2, color=RACE )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(!is.na(umap_data2$RACE)), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "black", "red", "green" , "plum1" ), na.value ="grey90") +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+gender_plot2= ggplot(umap_data2 %>% arrange(desc(GENDER )),  aes(PaCMAP1, PaCMAP2, color=GENDER )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(!is.na(umap_data2$GENDER)), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "pink", "blue"), na.value ="grey90") +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+smoking_plot2= ggplot(umap_data2 %>% arrange(desc(SMOKING.STATUS.X )),  aes(PaCMAP1, PaCMAP2, color=SMOKING.STATUS.X )) +
+    geom_point(size=s1) + 
+    geom_point(data =umap_data2[which(!is.na(umap_data2$SMOKING.STATUS.X)), ], aes(PaCMAP1, PaCMAP2 ))+
+    scale_color_manual(values = c( "green", "orange", "red", "black"), na.value ="grey90") +
+    theme_clean +
+    guides(color=guide_legend(ncol=1))
+
+
+subtype= ggplot(umap_data2,  aes(PaCMAP1, PaCMAP2, color=TCGA_LUAD_expr_subtype )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c( "darkgreen", "chocolate","black" ), na.value =  "grey90") + #  +
+    geom_point(data =umap_data2[which(!is.na(umap_data2$TCGA_LUAD_expr_subtype)), ], aes(PaCMAP1, PaCMAP2 ))+
+    theme_clean + 
+    guides(color=guide_legend(ncol=2))
+
+lst = list(
+    NA, NA, umap_cohort_plot2, 
+    tsne_cohort_plot2, stage_plot2, grade_plot2,  age_plot2, 
+    race_plot2 , gender_plot2, smoking_plot2, NA, 
+    subtype)
+
+pdf(file.path( "../../Figures/Multiplot_Supp_fig1_3_6_2026_V2.pdf"),height = 20, width = 16)
+ggarrange( plotlist = lst, nrow =4, ncol =3)
+dev.off()
+
+
+
+##  GSVA scores for T cell infammed as well as 5 gene predictor plots 
+
+myPalette2 <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+pathwy_sc <- scale_colour_gradientn(colours = myPalette2(20), limits=c(-1, 1))
+   
+
+p1= ggplot(umap_data2, aes(PaCMAP1, PaCMAP2, color=GSVA.Science_Tcell_inflamed_GEP_PMID_30309915 )) +
+    geom_point(size=2) + 
+    pathwy_sc +
+    ggtitle(paste0("")) + theme_clean + 
+    theme(legend.position = "inside", legend.position.inside =c(0.72, 0.3) )
+
+p3= ggplot(umap_data2, aes(PaCMAP1, PaCMAP2, color=GSVA.Lung_5gene_tumor_purity_immune_PMID_PMC8216812 )) +
+    geom_point(size=2) + 
+    pathwy_sc +
+    ggtitle(paste0("")) + theme_clean + 
+    theme(legend.position = "inside", legend.position.inside = c(0.72, 0.3) )
+
+lst = list(p1,  p3)
+
+pdf(file.path( "Figures/updated_gsva_scores.pdf"),height = 20, width = 16)
+ggarrange( plotlist = lst, nrow =4, ncol =3)
+dev.off()
+
+
+## Tumor Purity 
+
+umap_data2$purity = as.numeric(umap_data2$purity*100)
+myPalette <- colorRampPalette(rev(brewer.pal(5, "RdYlBu")))
+sc2 <- scale_colour_gradientn(colours = myPalette(5), limits=c(0, 100), na.value = "grey90")
+purity_plot2= ggplot(umap_data2 ,  aes(PaCMAP1, PaCMAP2, color=purity )) +
+    geom_point(size=1) + 
+    sc2 + 
+    theme_clean 
+
+pdf("Figures/purity.pdf", width = 6, height = 4)
+print(purity_plot2)
+dev.off()
+
+box2 = ggplot(umap_data2 ,aes(x =cohorts, y = purity,fill =cohorts)) + geom_boxplot() + 
+    theme_bw() + theme(
+        plot.title = element_text(hjust=0, vjust=0, 
+                                  lineheight=.8, face="bold", size=10 ),
+        plot.margin=unit(chosen_margin,"cm"), 
+        legend.position = "none" ,
+        legend.title=element_blank() )
+
+
+pdf("Figures/purity_boxplot_cohort.pdf", width = 5, height = 5)
+print(box2)
+dev.off()
+
+
+## survival figure
+
+# ---- Kaplan–Meier ----
+fit_strict <- survfit(
+    Surv(time, event) ~ cohorts,
+    data = umap_data2
+)
+
+km_strict <- ggsurvplot(
+    fit_strict,
+    data       = umap_data2,
+    pval       = FALSE,
+    palette =c(col_vector[1:3], col_vector[5:21]),# 
+    risk.table = TRUE,
+    tables.height = 0.4,
+    ggtheme    = theme_bw()
+)
+
+# Increase axis text and axis title size
+km_strict$plot <- km_strict$plot +
+    theme(
+        axis.title = element_text(size = 16),
+        axis.text  = element_text(size = 14)
+    ) + xlab("Time (months)") 
+
+# Increase risk table font size
+km_strict$table <- km_strict$table +
+    theme(
+        axis.text  = element_text(size = 12),
+        axis.title = element_text(size = 14)
+    ) + xlab("Time (months)") +ylab("")
+
+pdf("Figures/SURVIVAL_all_cohorts_km_v2.pdf", height = 6, width = 5)
+print(km_strict)
+dev.off()
+
+
+## Multi cox
+clin_df = umap_data2
+clin_df$cohorts <- factor(clin_df$cohorts,levels = c("A1","A2","A3", "A4" , "MD1",  "MD2", "SC", "SQ1", "SQ2"))
+
+clin_df$SMOKING.STATUS.X = as.character(clin_df$SMOKING.STATUS.X)
+clin_df$SMOKING.STATUS.X[which(clin_df$SMOKING.STATUS.X=="na")] = NA_character_
+clin_df$SMOKING.STATUS.X[which(clin_df$SMOKING.STATUS.X=="Current-smoker(< 15yrs)")] = "Smoker <15yrs"
+clin_df$SMOKING.STATUS.X[which(clin_df$SMOKING.STATUS.X=="Current-smoker(> 15yrs)")] = "Smoker >15yrs"
+clin_df$SMOKING.STATUS.X[which(clin_df$SMOKING.STATUS.X=="Current smoker")] = "Smoker >15yrs"
+clin_df$GENDER[which(clin_df$GENDER=="na")] = NA_character_
+
+cox_strict <- coxph(
+    Surv(time, event) ~ Cohorts + Gender+ Smoking.Status,
+    data = clin_df
+)
+summary(cox_strict)
+
+pdf("Figures/ggforest_cohorts.pdf", width =14, height = 8)
+ggforest(cox_strict, data = clin_df ,   fontsize = 1.75 )
+dev.off()
+
+
+```
