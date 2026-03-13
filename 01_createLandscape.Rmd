@@ -1,0 +1,330 @@
+---
+title: "Creating Lung Landscape from Paper"
+author: "Sonali Arora, Laavan Suresh"
+date: "Narch 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r}
+library(GenomicRanges)
+library(rtracklayer)
+dataset_dir = "~/HollandLabShared/Laavan/Sonali_final_data/raw_counts/used_in_paper"
+# read the datasets
+df1= read.delim("raw_unstranded_counts_apollo_luad.txt", row.names = 1) 
+
+df2 = readRDS( "SRP045225_hg38proteincoding_rawcounts.rds")   
+non_lung_samples = c("SRR1797287", "SRR1797290", "SRR1797295", 
+             "SRR1797256", "SRR1797267", "SRR1797268", "SRR1797269",
+             "SRR1797270", "SRR1797271", "SRR1797293", "SRR1797294")
+df2 <- df2[, !colnames(df2) %in% c(non_lung_samples)] 
+
+df3 = readRDS( "SRP117020_hg38proteincoding_rawcounts.rds") 
+
+df4 = readRDS( "SRP012656_hg38proteincoding_rawcounts.rds") 
+lung_samples = c("SRR493939", "SRR493943", "SRR493947", "SRR493951", "SRR493955", "SRR493959")
+df4 <- df4[, colnames(df4) %in% lung_samples]
+
+df5 = readRDS( "SRP114901_hg38proteincoding_rawcounts.rds")  
+df6 = readRDS( "SRP175171_raw_genes_60k.rds")  
+df7 = readRDS( "SRP090460_hg38proteincoding_rawcounts.rds")  
+
+df8 = read.delim("MacPhearson_lab_pdx_models_exon_raw_reads.txt", row.names = 1)
+samples = c("FHSC48_S84.txt", "FHSC49_S85.txt", "FHSC50_S86.txt", "lv2242_S63.txt") # PDX Samples
+df8 <- df8[, !colnames(df8) %in% samples] # Remove PDX
+
+df9= read.delim("FHHCC_hg38_raw_protein_coding_genes.txt", check.names = F) 
+rownames(df9) = df9$gene_name
+colnames(df9) = gsub(".reverse.txt", "", colnames(df9))
+colnames(df9) = gsub("^X", "", colnames(df9))
+lung_samples = c("47622_S105", "48507_S107", "49718_S125", "52310_S127", "52404_S128", "52606_S129", "53536_S130", "53612_S117",
+                 "53933_S131", "55009_S132", "55439_S121", "56218_S133", "57511_S106", "59627_S122", "60703_S134", "62504_S126",
+                 "63229_S123", "66326_S124")
+df9 <- df9[, match(lung_samples, colnames(df9))]
+
+df10= readRDS("PRJNA671365_sclc_geneid_htseq_reverse.rds")
+sample_to_keep = c("SRR13780246", "SRR13780247", "SRR13780248", "SRR13780249", "SRR13780250", "SRR13780251", "SRR13780252", "SRR13780253",
+                   "SRR13780254", "SRR13780255", "SRR13780256", "SRR13780257", "SRR13780258", "SRR13780259", "SRR13780260", "SRR13780261",
+                   "SRR13780262", "SRR13780263", "SRR13780264", "SRR13780265", "SRR13780266", "SRR13780267", "SRR13780268", "SRR13780269",
+                   "SRR13780270", "SRR13780271", "SRR13780272", "SRR13780273", "SRR13780274", "SRR13780291")
+df10= df10[, (colnames(df10) %in% sample_to_keep)]
+
+df11 = readRDS("GSE135222_new_no_hg38_raw_protein_coding_genes.txt")  
+df12 = read.delim("GSE126044_new_reverse_hg38_raw_protein_coding_genes.txt", row.names = 1)
+df13 = read.delim("GSE135222_new_no_hg38_raw_protein_coding_genes.txt", row.names = 1)
+df14 = read.delim("lung_berger_hg38_raw_protein_coding_genes.txt", row.names = 1)
+tcga_luad = readRDS("unstranded_raw_protein_coding_tcga_luad.rds") 
+tcga_lusc = readRDS("unstranded_raw_protein_coding_tcga_lusc.rds") 
+
+# find common protein coding genes for each dataset
+gtf = import("gencode.v39.primary_assembly.annotation.gtf")
+common_genes = gtf$gene_name
+df1 = df1[common_genes, ]
+df2 = df2[common_genes, ]
+df3 = df3[common_genes, ]
+df4 = df4[common_genes, ]
+df5 = df5[common_genes, ]
+df6 = df6[common_genes, ]
+df7 = df7[common_genes, ]
+df8 = df8[common_genes, ]
+df9 = df9[common_genes, ]
+df10 = df10[common_genes, ]
+df11= df11[common_genes, ]
+df12= df12[common_genes, ]
+df13 = df13[common_genes, ]
+df14 = df14[common_genes, ]
+tcga_luad = tcga_luad[common_genes, ]
+tcga_lusc = tcga_lusc[common_genes, ]
+
+# combine all the data
+count_matrix = cbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, 
+                     tcga_luad, tcga_lusc)
+
+# define batches for batch correction
+batch = c(rep("apollo", ncol(df1)), rep("SRP045225", ncol(df2)),  rep("SRP117020", ncol(df3)),
+          rep("SRP012656", ncol(df4)), rep("SRP114901", ncol(df5)), rep("SRP175171", ncol(df6)),
+          rep("SRP090460", ncol(df7)), rep("MacphersonLab", ncol(df8)), rep("FHCC", ncol(df9)),
+          rep("PRJNA671365", ncol(df10)), rep("GSE217646", ncol(df11)),
+          rep("GSE126044", ncol(df12)), rep("GSE135222", ncol(df13)),rep("Berger Lab", ncol(df14)),
+          rep("tcga", ncol(tcga_luad)), rep("tcga", ncol(tcga_lusc)))
+
+## batch correction 
+adjusted <- ComBat_seq(count_matrix, batch=batch, group=NULL)
+
+## normalization  ( VST)
+dataMtrx = DESeq2::vst(adjusted)
+
+# TPM normalization 
+getTPM = function(exon_mat, gtf){    
+    gw = width(gtf)
+    y <- DGEList(exon_mat)
+    y$genes <- data.frame(Length=gw)
+    rpkm_vals = rpkm(y )
+    log2_rpkm_vals = log2(rpkm_vals +1)
+    tpm_vals = apply(rpkm_vals, 2, function(x){
+        (x/sum(x))*10^6
+    })
+    log2_tpm_vals = log2(tpm_vals +1)
+    log2_tpm_vals
+}
+log2_tpm_counts = getTPM(adjusted, gtf)
+
+# Perform dimensionality Reduction
+
+## 1. umap 
+umap_out <- umap(t(dataMtrx), random_state = 123, min_dist = 0.5) # Run UMAP
+umap_2d = umap_out$layout
+colnames(umap_2d) = c("UMAP1_2d", "UMAP2_2d")
+
+## 2. pacmap
+library(reticulate)
+reticulate::conda_install(
+  envname = "pacmap_new",
+  packages = "pacmap",
+  pip = TRUE
+)
+use_condaenv("pacmap_new", required = TRUE)
+pacmap <- reticulate::import("pacmap")
+pacmap_embedding <- pacmap$PaCMAP(
+  n_components = 2L,
+  n_neighbors = 20L,
+  MN_ratio = 0.5,
+  FP_ratio = 3.0
+)
+embedding <- pacmap_embedding$fit_transform(t(dataMtrx))
+colnames(embedding) = c("PaCMAP1", "PaCMAP2")
+
+# 3.tSNE
+set.seed(42)
+tsne_out2 <- Rtsne(t(dataMtrx),pca=FALSE,perplexity=30,theta=0.0,check_duplicates = FALSE)
+tsne_data2 = tsne_out2$Y
+colnames(tsne_data2) = c("tSNE_1", "tSNE_2")
+
+# save the files 
+ans_df =data.frame(  umap_2d, embedding, tsne_data2, sampleName = colnames(dataMtrx))
+write.table(ans_df, "final_metadata_3_12_2026.txt", sep ="\t", quote=F, row.names=F, col.names=T)
+saveRDS(log2_tpm_counts, "log2_tpm_counts.rds")
+saveRDS(dataMtrx, "vst_counts.rds")
+saveRDS(count_matrix , "raw_matrix_not_batch_corrected.rds")
+saveRDS(adjusted , "raw_matrix_batch_corrected.rds")
+saveRDS(batch, "batch_by_dataset.rds")
+```
+## consensus clustering 
+
+```{r}
+ggdf = ans_df # get pacmap coordiantes. 
+vst = dataMtrx
+identical(ggdf$sampleName, colnames(vst)) ## sanity check.
+
+# isolate the 3 clusters. 
+southAdeno = ggdf[which(ggdf$PaCMAP2 < -5 ), "sampleName"]
+northAdeno= ggdf[ which(ggdf$PaCMAP2 > -5 & ggdf$PaCMAP1 < 5) , "sampleName"]
+squamous =  ggdf[which(ggdf$PaCMAP1 < 5) , "sampleName"]
+
+vst1 <- vst[, colnames(vst) %in% northAdeno]
+vst2 <- vst[, colnames(vst) %in% southAdeno]
+vst3 <- vst[, colnames(vst) %in% squamous]
+
+ggdf1 <- ggdf[ggdf$sampleName %in% northAdeno, , drop = FALSE]
+ggdf2 <- ggdf[ggdf$sampleName %in% southAdeno, , drop = FALSE]
+ggdf3 <- ggdf[ggdf$sampleName %in% squamous, , drop = FALSE]
+
+## south adeno 
+expr_matrix <- as.matrix(vst2)  # Ensure it's a matrix
+mads=apply(expr_matrix, 1, mad)
+expr_matrix=expr_matrix[rev(order(mads))[1:5000],]
+
+# Set parameters
+maxK <-7  # Maximum number of clusters to test
+reps <- 100  # Number of resampling iterations
+pItem <- 0.8  # Proportion of items to sample in each iteration
+pFeature <- 1  # Proportion of features to sample (use 1 for all genes)
+south_adeno <- ConsensusClusterPlus(
+    expr_matrix,
+    maxK = maxK,
+    reps = reps,
+    pItem = pItem,
+    pFeature = pFeature,
+    clusterAlg = "km",  # k-means clustering only support eucledian.
+    distance = "euclidean",
+    seed = 1234,
+    plot = "png",
+    title = "ConsensusCluster_Kmeans"
+)
+clusters_result3 <- south_adeno[[5]]$consensusClass
+table(clusters_result3)
+
+# Custom heights for annotated heatmap
+annotation_height_custom <- unit(c(8, 8, 8), "mm")  # Make annotation bars taller
+heatmap_height_custom <- unit(50, "mm")    
+
+# Annotated figure
+k <- 5
+consensus_matrix <- south_adeno[[k]]$consensusMatrix
+
+# Define color palettes
+diagnosis_colors <- c(
+    "Adenocarcinoma"  = "orange",
+    "NSCLC (Unclassified)" = "#386CB0",
+    "Small Cell Lung Cancer"           = "darkgreen",
+    "Squamous cell carcinoma"   = "red"     
+)
+cluster_colors <- c(
+    "A2" ="#BEAED4", 
+    "A3" = "#FDC086", 
+    "A4" = "#386CB0", 
+    "MD1" = "#F0027F" , 
+    "SC" = "#666666"
+)
+cluster_labels <- factor(south_adeno[[k]]$consensusClass, levels = c(1,2,3,4,5), labels = c("A4", "A3", "SC", "A2", "MD1"))
+
+# Annotation block
+ha <- HeatmapAnnotation(
+    Cluster = cluster_labels,
+    col = list(
+        Cluster = cluster_colors
+    ),
+    which = "column",
+    annotation_height = annotation_height_custom
+)
+# Consensus heatmap
+ht = Heatmap(
+    consensus_matrix,
+    name = "Consensus Index",
+    col = colorRamp2(c(0, 1), c("white", "blue")),
+    top_annotation = ha,
+    show_row_names = FALSE,
+    show_column_names = FALSE,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    height = heatmap_height_custom,
+    heatmap_legend_param = list(
+        title_position = "topcenter",  # Move title to the left
+        legend_direction = "horizontal",
+        legend_height = unit(40, "mm")
+    )
+)
+pdf("south_adeno_consensus_clustering.pdf", width =6, height = 6)
+draw(ht, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+dev.off()
+
+
+
+## squamous cell carcinoma
+expr_matrix <- as.matrix(vst3)  # Ensure it's a matrix
+mads=apply(expr_matrix, 1, mad)
+expr_matrix=expr_matrix[rev(order(mads))[1:5000],]
+
+# Set parameters
+maxK <-7  # Maximum number of clusters to test
+reps <- 100  # Number of resampling iterations
+pItem <- 0.8  # Proportion of items to sample in each iteration
+pFeature <- 1  # Proportion of features to sample (use 1 for all genes)
+
+results_kmeans <- ConsensusClusterPlus(
+    expr_matrix,
+    maxK = maxK,
+    reps = reps,
+    pItem = pItem,
+    pFeature = pFeature,
+    clusterAlg = "km",  # k-means clustering only support eucledian.
+    distance = "euclidean",
+    seed = 1234,
+    plot = "png",
+    title = "ConsensusCluster_Kmeans"
+)
+
+# Custom heights for annotated heatmap
+annotation_height_custom <- unit(c(8, 8, 8), "mm")  # Make annotation bars taller
+heatmap_height_custom <- unit(50, "mm")    
+chosen = ggdf[which(ggdf$cluster  %in% c("SQ1", "SQ2")), ]
+k <- 2
+consensus_matrix <- results[[k]]$consensusMatrix
+
+# Define color palettes
+diagnosis_colors <- c(
+    "Adenocarcinoma"  = "black",
+    "NSCLC (Unclassified)" = "#386CB0",
+    "Small Cell Lung Cancerr"           = "coral",
+    "Squamous cell carcinoma"   = "#E6AB02"     
+)
+cluster_colors <- c(
+    "SQ1" = "coral4", "SQ2" = "darkorchid2"
+)
+cluster_labels <- factor(results[[2]]$consensusClass, levels = c(1,2), labels = c("SQ1", "SQ2"))
+
+# Annotation block
+ha <- HeatmapAnnotation(
+    Diagnosis = chosen$DISEASE,
+    Cluster = cluster_labels,
+    col = list(
+        Diagnosis = diagnosis_colors,
+        Cluster = cluster_colors
+    ),
+    which = "column",
+    annotation_height = annotation_height_custom
+)
+# Consensus heatmap
+ht = Heatmap(
+    consensus_matrix,
+    name = "Consensus Index",
+    col = colorRamp2(c(0, 1), c("white", "blue")),
+    top_annotation = ha,
+    show_row_names = FALSE,
+    show_column_names = FALSE,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    height = heatmap_height_custom,
+    heatmap_legend_param = list(
+        title_position = "topcenter",  # Move title to the left
+        legend_direction = "horizontal",
+        legend_height = unit(40, "mm")
+    )
+)
+pdf("Squamous_consensus_heatmap_final.pdf", width =6, height = 6)
+draw(ht, heatmap_legend_side = "bottom", annotation_legend_side = "bottom")
+dev.off()
+
+```
