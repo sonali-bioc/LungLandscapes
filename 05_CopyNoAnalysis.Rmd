@@ -1,0 +1,231 @@
+---
+title: "Reproducing copy number analysis from the paper"
+author: "Sonali Arora, Laavan Suresh"
+date: "March 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+In this vignette, we recreate all the copy no analysis and figures from the paper. 
+
+## Analysis
+```{r}
+library(sva)
+library(CaSpER)
+library(GenomicRanges)
+library(ggplot2)
+library(gridExtra)
+library(dplyr)
+library(edgeR)
+library(BiocGenerics)
+library(IRanges)
+library(tidyverse)
+
+getTPM = function(exon_mat, gtf){
+  y <- DGEList(exon_mat)
+  gw = width(gtf)
+  y$genes <- data.frame(Length=gw)
+  rpkm_vals = rpkm(y )
+  log2_rpkm_vals = log2(rpkm_vals +1)
+  tpm_vals = apply(rpkm_vals, 2, function(x){
+    (x/sum(x))*10^6
+  })
+  log2_tpm_vals = log2(tpm_vals +1)
+  log2_tpm_vals
+}
+
+count_matrix_all = readRDS("count_matrix_all.rds")
+batch = readRDS("Batch_by_dataset.rds")
+loh = readRDS("all_loh.rds")
+
+adjusted <- ComBat_seq(count_matrix_all, batch=batch, group=NULL)
+
+# TPM Normalization
+combat_edata = getTPM(adjusted, gtf2)
+
+cytoband <- read.delim("cytoBand_hg38_ucsc.txt", header = FALSE)
+cytoband <- data.frame(V1=gsub("chr", "", cytoband[,1]), V2=cytoband[,2], V3=cytoband[,3], V4=substring(cytoband$V4, 1, 1), stringsAsFactors=F)
+start <- do.call(rbind, lapply(split(cytoband$V2, paste0(cytoband$V1, cytoband$V4)), min))
+end <- do.call(rbind, lapply(split(cytoband$V3, paste0(cytoband$V1, cytoband$V4)), max))
+cytoband <- data.frame(V1=gsub("p", "", gsub("q", "", rownames(start))), V2=start, V3=end, V4=rownames(start), stringsAsFactors=F)
+cytoband <- cytoband [as.vector(unlist(sapply(c(1:22, "X"), function(x) which(cytoband$V1 %in% x)))), ]
+cytoband$V4[grep("q", cytoband$V4)] <- "q"
+cytoband$V4[grep("p", cytoband$V4)] <- "p"
+rownames(cytoband) <- NULL
+
+#Centromere information
+centromere <- read.delim("centromere_hg38.txt", header = FALSE)
+
+#Control sample ids
+control.sample.ids <- data.frame(colnames(COPD))
+names(control.sample.ids)[1] = "sampleNames"
+
+#Annotation data (positions of each gene along each chromosome)
+annotation <- CaSpER::generateAnnotation(id_type="hgnc_symbol", genes=rownames(combat_edata), ishg19 = F, centromere, host="useast.ensembl.org")
+
+#subset data to only have genes as same as in annotation file
+cnvtestdata <- combat_edata[match( annotation$Gene,rownames(combat_edata)), ]
+
+#generate dataframe of loh.name.mapping
+files <- names(loh)
+loh.name <- gsub(".baf", "", files)
+sample.name <- gsub(".baf", "", files)
+loh.name.mapping <- data.frame(loh.name, sample.name)
+                                              
+#creating CaSpER object                                              
+object <- CaSpER::CreateCasperObject(raw.data = cnvtestdata, loh.name.mapping = loh.name.mapping, sequencing.type = "bulk", cnv.scale =3, loh.scale = 3, matrix.type = "normalized",
+                                     expr.cutoff = 0.1, annotation = annotation, method = "iterative", loh=loh, filter = "median", log.transformed = TRUE,
+                                     control.sample.ids = control.sample.ids, cytoband = cytoband, genomeVersion = "hg38")
+
+#pairwise comparison of scales from BAF and expression signals
+final.objects <- CaSpER::runCaSpER(object, removeCentromere = T, cytoband = cytoband, method = "iterative")
+
+#Large scale CNV summarization
+finalChrMat <- CaSpER::extractLargeScaleEvents(final.objects, thr = 0.75)
+```
+
+## calculation of No of patients/ frequency of gains and losses by disease , at arm level 
+```{r}
+finaldf = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)      
+                                              
+l1 =lapply(1:ncol(finalChrMat), function(x){
+    message(x)
+    cn = finalChrMat[, x]
+    mychr = colnames(finalChrMat)[x]
+    message(mychr)
+    cn[is.na(cn)] =0
+    ggdf = finaldf
+    ggdf$cn = 0
+    ggdf$cn = cn
+    
+    ## LUNG SUBGROUP
+    med_ggdf = ggdf[which(ggdf$DISEASE %in% c("Adenocarcinoma", "Small Cell Lung Cancer",
+                                              "Squamous cell carcinoma", "NSCLC (Unclassified)")), ]
+    med_ggdf$subgroup = med_ggdf$DISEASE
+    md  = med_ggdf[, c("subgroup", "cn")]  %>% as.data.table
+    t2 =md[, .N, by = c("subgroup", "cn")] %>% dcast(., cn ~ subgroup, value.var = "N")
+    t2 = as.data.frame(t2)
+    rownames(t2) = t2[, 1]
+    t2 = t2[, -1]
+    t2 = t(t2)
+    t2[is.na(t2)] = 0
+    t2 = reshape2::melt(t2)
+    colnames(t2) = c("group", "copyno", "Freq")
+    df2 <- t2 %>%
+        group_by(group) %>%
+        arrange(group, desc(copyno)) %>%
+        mutate(lab_ypos = cumsum(Freq) - 0.5 * Freq)
+    df2$copyno = factor(df2$copyno, levels = c("-1", "0", "1"))
+    df2$group = factor(df2$group, levels =c("Adenocarcinoma", "Small Cell Lung Cancer",
+                                            "Squamous cell carcinoma", "NSCLC (Unclassified)"))
+    df2$chr = mychr
+    df2
+})
+
+l1 = do.call(rbind, l1)
+l1 = as.data.frame(l1)    
+## gain                                               
+test = l1 [ which(l1$group=="Adenocarcinoma"& l1$copyno=="1"), ]
+test$percentage = round(test [ , "Freq"]/ 686 , 5)*100
+
+test2 = l1 [ which(l1$group=="Squamous cell carcinoma"& l1$copyno=="1"), ]
+test2$percentage = round(test2 [ , "Freq"]/ 529 , 5)*100
+
+test3 = l1 [ which(l1$group=="Small Cell Lung Cancer"& l1$copyno=="1"), ]
+test3$percentage = round(test3 [ , "Freq"]/ 130 , 5)*100
+
+test4 = l1 [ which(l1$group=="NSCLC (Unclassified)"& l1$copyno=="1"), ]
+test4$percentage = round(test4 [ , "Freq"]/ 76 , 5)*100          
+gain = cbind(test, test2, test3. test4)
+
+## loss 
+test = l1 [ which(l1$group=="Adenocarcinoma"& l1$copyno=="-1"), ]
+test$percentage = round(test [ , "Freq"]/ 686 , 5)*100
+
+test2 = l1 [ which(l1$group=="Squamous cell carcinoma"& l1$copyno=="-1"), ]
+test2$percentage = round(test2 [ , "Freq"]/ 529 , 5)*100
+
+test3 = l1 [ which(l1$group=="Small Cell Lung Cancer"& l1$copyno=="-1"), ]
+test3$percentage = round(test3 [ , "Freq"]/ 130 , 5)*100
+
+test4 = l1 [ which(l1$group=="NSCLC (Unclassified)"& l1$copyno=="-1"), ]
+test4$percentage = round(test4 [ , "Freq"]/ 76 , 5)*100
+
+loss = cbind(test, test2, test3, test4) 
+
+## Manhattan plots 
+colnames(gain)[1] = "chr"
+colnames(loss)[1] = "chr"
+
+# add type column
+gain$type <- "Gain"
+loss$type <- "Loss"
+
+# combine
+cnv <- bind_rows(gain, loss)
+
+# convert to long format
+cnv_long <- cnv %>%
+    pivot_longer(
+        cols = -c(chr, type),
+        names_to = "disease",
+        values_to = "percentage"
+    )
+
+# ensure chromosome arms are ordered
+chr_order <- c(paste0(rep(1:22, each=2), c("p","q")))
+cnv_long$chr <- factor(cnv_long$chr, levels = chr_order)
+cnv_long[which(cnv_long$disease=="sclc"), "disease"] = "SCLC"
+
+pdf("Figures/cn_manhattan.pdf", width =10 , height = 14)
+cnv_manhattan <- cnv_long %>%
+    mutate(value = ifelse(type=="Gain", percentage, -percentage))
+
+ggplot(cnv_manhattan, aes(chr, value, fill=type)) +
+    geom_bar(stat="identity") +
+    facet_wrap(~disease, ncol=1) +
+    scale_fill_manual(values=c(Gain="firebrick3", Loss="steelblue3")) +
+    labs(
+        x="Chromosome arm",
+        y="Gain / Loss percentage"
+    ) +
+    theme_classic(base_size=20) +
+    theme(
+        axis.text.x = element_text(angle=90),
+        strip.text = element_text(face="bold", size = 20)
+    )
+dev.off()
+                                              
+```
+## Visualization = pacmap colored in by arm level gains and looses. 
+                                              
+````{r}                                              
+vals = c("red",  "grey90",  "blue")
+names(vals) = c(1, 0, -1)                                     
+
+my_cn_plot  = function(arm_list){
+    lapply(arm_list, function(arm){
+        x  = match(arm, colnames(finalChrMat))
+        cn = finalChrMat[, x]
+        cn[is.na(cn)] =0
+        ggdf = finaldf
+        ggdf$cn = 0
+        ggdf$cn = as.numeric(cn )       
+        ggdf = ggdf[ order(abs(ggdf$cn), decreasing=FALSE), ]
+        ggdf$cn = factor(ggdf$cn, levels = names(vals))        
+        p1= ggplot(ggdf, aes(PaCMAP1, PaCMAP2, color=cn )) +
+            geom_point(size=3) +
+            scale_color_manual(values = vals, labels = names(vals), na.value = "grey90")+
+            ggtitle(paste0(colnames(finalChrMat)[x])) + 
+            theme_clean + theme(legend.position ="none")
+        p1
+    })
+}
+pdf("Figures/Multiplot_Copy_no_arm_level.pdf", height = 20, width = 16)
+a1 = my_cn_plot(colnames(finalChrMat))
+ggarrange( plotlist = a1, nrow =4, ncol =3)
+dev.off()
+```
+                                              
