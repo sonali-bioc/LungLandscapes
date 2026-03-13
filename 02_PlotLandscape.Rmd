@@ -44,7 +44,7 @@ theme_clean <- theme_bw() +
 qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
 col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
 
-umap_data2 = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+umap_data2 = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
 
 dataset_plot2= ggplot(umap_data2 %>% arrange(desc(DATASET)),  aes(PaCMAP1, PaCMAP2, color=DATASET )) +
     geom_point(size=s1) + 
@@ -201,7 +201,7 @@ lst = list(
     race_plot2 , gender_plot2, smoking_plot2, NA, 
     subtype)
 
-pdf(file.path( "../../Figures/Multiplot_Supp_fig1_3_6_2026_V2.pdf"),height = 20, width = 16)
+pdf(file.path( "Figures/Multiplot_Supp_fig1_3_6_2026_V2.pdf"),height = 20, width = 16)
 ggarrange( plotlist = lst, nrow =4, ncol =3)
 dev.off()
 
