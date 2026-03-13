@@ -1,0 +1,144 @@
+---
+title: "Reproducing Pathway GSVA score plots from the paper"
+author: "Sonali Arora"
+date: "March 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+In this vignette, we recreate all the pathway GSVA plots from the paper. 
+
+```{r}
+rm(list=ls())
+
+library(ggplot2)
+library(dplyr)
+library(ggpubr)
+library(RColorBrewer)
+
+s1 = 1# size for points in PCA plot
+legend_pt_size =4
+plot_title_size = 25
+axis_text_size = 20
+axis_title_size=20
+legend_text_size=25
+spacing=1
+chosen_margin = c(0.5,1,0.5,1)# margins:top,right,bottom,left
+theme_clean <- theme_bw() +
+    theme(
+        plot.title = element_text(hjust=0, vjust=0, 
+                                  lineheight=.8, face="bold", size=plot_title_size ),
+        plot.margin=unit(chosen_margin,"cm"), 
+        legend.text=element_text(size=legend_text_size),
+        legend.key.height = unit(spacing, "cm"),
+        legend.position = "right",
+        legend.justification = 'left',
+        legend.spacing.y = unit(0.5, 'cm'),
+        legend.title=element_blank() , 
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
+umap_data2 = read.delim("final_metadata_3_12_2026.txt.txt" , header=T, stringsAsFactors=F)
+score = readRDS("pathways.rds")
+
+myPalette2 <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+pathwy_sc <- scale_colour_gradientn(colours = myPalette2(20), limits=c(-1, 1))
+
+print_mypathway = function(want, want_title){
+    midx = sapply(want, function(x)  grep(x, rownames(score))[1] )
+    midx = unlist(midx)
+    
+    L1 = lapply(1:length(midx), function(idx){
+        z = midx[idx]
+        PATHName = want_title[idx]
+        mat = as.data.frame(cbind( umap_data2, GSVA = unlist(score[z,])))      
+        
+        p1= ggplot(mat, aes(PaCMAP1, PaCMAP2, color=GSVA )) +
+            geom_point(size=2) + 
+            pathwy_sc +
+            ggtitle(paste0(PATHName)) + theme_clean + 
+            theme(legend.position = "inside", legend.position.inside = c(0.72, 0.3) )
+        p1
+    })
+}
+                  
+## pathways
+chosen_pathways = c("GO_POSITIVE_REGULATION_OF_T_CELL_PROLIFERATION", 
+                    "REACTOME_PD_1_SIGNALING", 
+                    "GO_ADAPTIVE_IMMUNE_RESPONSE")
+wtitle_name = rep("", length(chosen_pathways))
+k1 = print_mypathway(want  = chosen_pathways, want_title = wtitle_name )
+pdf(file.path( "Figures/Multiplot_IMMUNE_pathwys.pdf"), height = 20, width = 16)
+ggarrange( plotlist = k1, nrow =4, ncol =3)
+dev.off()
+
+## supp fig 5 
+
+chosen_pathways  = c(  
+    "REACTOME UNWINDING OF DNA",
+    "GO MEIOTIC CHROMOSOME CONDENSATION",
+    "REACTOME G2 M DNA REPLICATION CHECKPOINT",
+    "REACTOME SUMO IS CONJUGATED TO E1 UBA2 SAE1", 
+    
+    "BIOCARTA MCM PATHWAY",
+    "GO_CELL_CYCLE_DNA_REPLICATION_INITIATION",
+    "GO_PRE_REPLICATIVE_COMPLEX_ASSEMBLY_INVOLVED_IN_CELL_CYCLE_DNA_REPLICATION", 
+    "GO_CELL_CYCLE_DNA_REPLICATION",
+    
+    "REACTOME PHOSPHORYLATION OF EMI1" , 
+    "GO NEGATIVE REGULATION OF HISTONE H3 K4 METHYLATION ",
+    "GO NORADRENERGIC NEURON DIFFERENTIATION",
+    "GO PYRUVATE FAMILY AMINO ACID METABOLIC PROCESS"  )
+chosen_pathways = gsub(" ", "_" , chosen_pathways)
+chosen_pathways[10] = "GO_NEGATIVE_REGULATION_OF_HISTONE_H3_K4_METHYLATION"
+
+k1 = print_mypathway(want  = chosen_pathways, want_title = chosen_pathways )
+pdf(file.path( "Figures/Multiplot_sc_pathways_supp_fig5.pdf"), height = 20, width = 16)
+ggarrange( plotlist = c(k1), nrow =4, ncol =3)
+dev.off()    
+
+# fig 6 
+chosen_pathways = c(
+    "REACTOME_ACTIVATED_NTRK2_SIGNALS_THROUGH_CDK5", 
+    "GO MONOCYTE AGGREGATION" 
+)
+chosen_pathways = gsub(" ", "_" , chosen_pathways)
+k1 = print_mypathway(want  = chosen_pathways, want_title = chosen_pathways )
+pdf(file.path( "../../Figures/Multiplot_NTRK2_MONOCYTE.pdf"), height = 20, width = 16)
+ggarrange( plotlist = c(k1), nrow =4, ncol =3)
+dev.off()
+
+
+# supp fig 6 
+
+chosen_pathways = c(
+"GO CALCIUM ION EXPORT ACROSS PLASMA MEMBRANE", 
+"GO PHYLLOQUINONE METABOLIC PROCESS",
+"GO MENAQUINONE METABOLIC PROCESS",
+"GO LEUKOTRIENE B4 METABOLIC PROCESS",
+"GO MITOCHONDRIAL RIBOSOME ASSEMBLY",
+"GO MRNA PSEUDOURIDINE SYNTHESIS",
+
+# BOTTOM SQ2
+"GO REGULATION OF VASCULAR ASSOCIATED SMOOTH MUSCLE CELL DEDIFFERENTIATION",
+"GO PEPTIDYL LYSINE OXIDATION", 
+"GO CELL MIGRATION INVOLVED IN KIDNEY DEVELOPMENT",
+"GO OSSIFICATION INVOLVED IN BONE REMODELING",
+"GO APOPTOTIC PROCESS INVOLVED IN HEART MORPHOGENESIS",
+"GO HISTONE CITRULLINATION"
+)
+chosen_pathways = gsub(" ", "_" , chosen_pathways)
+
+
+k1 = print_mypathway(want  = chosen_pathways, want_title = chosen_pathways )
+pdf(file.path( "Figures/Multiplot_SUPP_FIG_6.pdf"), height = 20, width = 16)
+ggarrange( plotlist = c(k1), nrow =4, ncol =3)
+dev.off()
+                  
+```
