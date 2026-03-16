@@ -169,14 +169,14 @@ age_plot2= ggplot(umap_data2 %>% arrange(desc(AGE )),  aes(PaCMAP1, PaCMAP2, col
 race_plot2= ggplot(umap_data2 %>% arrange(desc(RACE )),  aes(PaCMAP1, PaCMAP2, color=RACE )) +
     geom_point(size=s1) + 
     geom_point(data =umap_data2[which(!is.na(umap_data2$RACE)), ], aes(PaCMAP1, PaCMAP2 ))+
-    scale_color_manual(values = c( "black", "red", "green" , "plum1" ), na.value ="grey90") +
+    scale_color_manual(values = c( "blue", "gold",   "plum1", "green" ), na.value ="grey90") +
     theme_clean +
     guides(color=guide_legend(ncol=1))
 
 gender_plot2= ggplot(umap_data2 %>% arrange(desc(GENDER )),  aes(PaCMAP1, PaCMAP2, color=GENDER )) +
     geom_point(size=s1) + 
     geom_point(data =umap_data2[which(!is.na(umap_data2$GENDER)), ], aes(PaCMAP1, PaCMAP2 ))+
-    scale_color_manual(values = c( "pink", "blue"), na.value ="grey90") +
+    scale_color_manual(values = c( "orange", "mediumslateblue"), na.value ="grey90") +
     theme_clean +
     guides(color=guide_legend(ncol=1))
 
