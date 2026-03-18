@@ -20,6 +20,8 @@ kegg_db <- read.gmt(file.path(extdata, "c2.cp.kegg.v7.2.symbols.gmt"))
 biocarta_db <- read.gmt(file.path(extdata, "c2.cp.biocarta.v7.2.symbols.gmt"))
 reactome_db <- read.gmt(file.path(extdata, "c2.cp.reactome.v7.2.symbols.gmt"))
 go_bp = read.gmt(file.path(extdata, "c5.go.bp.v7.2.symbols.gmt"))
+tft_db = read.gmt(file.path(extdata, "c3.tft.v2023.1.Hs.symbols.gmt"))
+hallmark = read.gmt(file.path(extdata, "h.all.v7.2.symbols.gmt"))
 
 kegg_lst= split(kegg_db, kegg_db[,1])
 kegg_lst = lapply(kegg_lst, function(x) x[,2])
