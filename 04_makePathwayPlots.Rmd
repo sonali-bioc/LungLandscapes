@@ -44,22 +44,22 @@ hallmark = lapply(hallmark, function(x) x[,2])
 umap_data2 = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
 counts = readRDS("log2tpm.rds")
 
-gsvapar <- gsvaParam(vst_counts, kegg_lst, maxDiff=TRUE)
+gsvapar <- gsvaParam(counts, kegg_lst, maxDiff=TRUE)
 kegg_res <- gsva(gsvapar) 
 
-gsvapar <- gsvaParam(vst_counts, biocarta_lst, maxDiff=TRUE)
+gsvapar <- gsvaParam(counts, biocarta_lst, maxDiff=TRUE)
 biocarta_res <- gsva(gsvapar)
 
-gsvapar <- gsvaParam(vst_counts, reactome_lst, maxDiff=TRUE)
+gsvapar <- gsvaParam(counts, reactome_lst, maxDiff=TRUE)
 reactome_res <- gsva(gsvapar)
 
-gsvapar <- gsvaParam(vst_counts, go_bp, maxDiff=TRUE)
+gsvapar <- gsvaParam(counts, go_bp, maxDiff=TRUE)
 gobp_res <- gsva(gsvapar)
 
-gsvapar <- gsvaParam(vst_counts, tft_db, maxDiff=TRUE)
+gsvapar <- gsvaParam(counts, tft_db, maxDiff=TRUE)
 tft_res <- gsva(gsvapar)
 
-gsvapar <- gsvaParam(vst_counts, hallmark, maxDiff=TRUE)
+gsvapar <- gsvaParam(counts, hallmark, maxDiff=TRUE)
 hallmark_res <- gsva(gsvapar)
 
 score = rbind(tft_res, gobp_res, hallmark_res, reactome_res, biocarta_res, kegg_res)
