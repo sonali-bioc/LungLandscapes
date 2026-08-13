@@ -47,7 +47,7 @@ theme_clean <- theme_bw() +
 
 
 gene_exp_file = readRDS("log2tpm.rds")
-umap_data2 = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
+umap_data2 = read.delim("final_metadata_6_5_2026.txt" , header=T, stringsAsFactors=F)
 score = readRDS("pathways.rds")
 
 myPalette <- colorRampPalette(rev(brewer.pal(11, "RdYlBu"))) # for gene expression
@@ -111,7 +111,7 @@ ggarrange( plotlist =  lst, nrow =4, ncol =3)
 dev.off()
 
 
-# fig 3 
+# supp fig 3 
 
 a1 = my_gene_fun(c( "FASN", "NQO1",  "ASCL1",                     
                    "CYP24A1", "GCLC", "SLC7A11",  # A4
@@ -129,7 +129,7 @@ pdf(file.path( "Figures/Multiplot_NE_GENES_VIOLIN.pdf"), height = 20, width = 15
 ggarrange( plotlist =c( NA,  a11), nrow =6, ncol =3)
 dev.off()
               
-# fig 4 
+#  fig 4 
 a1 = my_gene_fun(c("CD8A", "PDCD1","CTLA4",  "HAVCR2", "CD86", "CD274" ))
 pdf(file.path( "Figures/Multiplot_IMMUNE_GENES.pdf"), height = 20, width = 16)
 ggarrange( plotlist = c(a1,k1), nrow =4, ncol =3)
