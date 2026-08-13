@@ -1,0 +1,122 @@
+---
+title: "Survival Analysis"
+author: "Sonali Arora"
+date: "August 1, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r}
+
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(ggpubr)
+library(survival)
+library(survminer)
+
+umap_data2 = read.delim("metadata_6_5_2026_with_clusters.txt", header=T, stringsAsFactors = F)
+
+umap_data2$cohorts = umap_data2$cluster
+umap_data2$cohorts = gsub("cohort", "",  umap_data2$cohorts)
+table(umap_data2$cohorts, useNA = "always")
+
+umap_data2$AJCC_PATHOLOGIC_STAGE[which( umap_data2$AJCC_PATHOLOGIC_STAGE =="na")] = NA_character_
+umap_data2$GRADE[which( umap_data2$GRADE =="na")] = NA_character_
+umap_data2$SMOKING.STATUS.X[which( umap_data2$SMOKING.STATUS.X =="na")] = NA_character_
+umap_data2$RACE[which( umap_data2$RACE =="na")] = NA_character_
+umap_data2$GENDER[which( umap_data2$GENDER =="na")] = NA_character_
+
+
+## KM curve 
+clin_df = umap_data2
+clin_df$cohorts <- factor(clin_df$cohorts,levels = c("A1","A2","A3", "A4" , "MD1",  "MD2", "SC", "SQ1", "SQ2"))
+fit_strict <- survfit(  Surv(time, event) ~ cohorts,  data = clin_df )
+km_strict <- ggsurvplot(
+    fit_strict,
+    data       = clin_df,
+    pval       = FALSE,
+    palette =c(col_vector[1:3], col_vector[5:21]), 
+    risk.table = TRUE,
+    tables.height = 0.4,
+    ggtheme    = theme_bw()
+)
+
+# Increase axis text and axis title size
+km_strict$plot <- km_strict$plot +
+    theme(  axis.title = element_text(size = 16),  axis.text  = element_text(size = 14)) + xlab("Time (months)") 
+
+# Increase risk table font size
+km_strict$table <- km_strict$table +
+    theme( axis.text  = element_text(size = 12),axis.title = element_text(size = 14)) + xlab("Time (months)") +ylab("")
+
+pdf("../Figures/SURVIVAL_all_cohorts_km_v2.pdf", height = 6, width = 5)
+print(km_strict)
+dev.off()
+
+cox_strict <- coxph(  Surv(time, event) ~ cohorts + Gender+ Smoking.Status, data = clin_df )
+pdf("../Figures/ggforest_cohorts_long_7_17_2026.pdf", width =14, height = 10)
+ggforest(cox_strict, data = clin_df ,   fontsize = 1.75 )
+dev.off()
+
+# pairwise survival 
+pw <- emmeans(cox_strict, pairwise ~ cohorts  )
+supp_table <- summary(  pw$contrasts,  infer = c(TRUE, TRUE)) %>%
+    mutate( HR = exp(estimate), Lower95CI = exp(asymp.LCL), Upper95CI = exp(asymp.UCL)   ) %>%
+    select(  Comparison = contrast, HR,  Lower95CI, Upper95CI, p.value)
+
+
+## within MD1
+clin_df = umap_data2[which(umap_data2$cohorts %in% c("MD1")), ]
+clin_df$Histology = clin_df$DISEASE
+clin_df$Histology[which(clin_df$Histology =="Adenocarcinoma")] = "LUAD"
+clin_df$Histology[which(clin_df$Histology =="Non-Small Cell Lung Cancer")] = "NSCLC"
+clin_df$Histology[which(clin_df$Histology =="Small Cell Lung Cancer")] = "SCLC"
+clin_df$Histology[which(clin_df$Histology =="Squamous cell carcinoma")] = "SCC"
+
+# NSCLC sample in MD1 have no survival data , confirm before dropping 
+with(clin_df, table(Histology, event))
+clin_df2 <- clin_df |>  filter(Histology != "NSCLC")
+clin_df$Histology <- factor(clin_df$Histology,levels = c("LUAD",   "SCLC", "SCC"))
+cox_strict <- coxph(
+    Surv(time, event) ~  Histology,
+    data = clin_df
+)
+pdf("../Figures/ggforest_cohorts_within_MD1.pdf", width =14, height = 14)
+ggforest(cox_strict, data = clin_df , fontsize = 1.75)
+dev.off()
+
+pw1 <- emmeans(cox_strict, pairwise ~ Histology  )
+supp_table1 <- summary(  pw1$contrasts,  infer = c(TRUE, TRUE)) %>%
+    mutate( HR = exp(estimate), Lower95CI = exp(asymp.LCL), Upper95CI = exp(asymp.UCL)   ) %>%
+    select(  Comparison = contrast, HR,  Lower95CI, Upper95CI, p.value)
+
+## within MD2 
+
+clin_df = umap_data2[which(umap_data2$cohorts %in% c("MD2")), ]
+clin_df$Histology = clin_df$DISEASE
+clin_df$Histology[which(clin_df$Histology =="Adenocarcinoma")] = "LUAD"
+clin_df$Histology[which(clin_df$Histology =="Non-Small Cell Lung Cancer")] = "NSCLC"
+clin_df$Histology[which(clin_df$Histology =="Small Cell Lung Cancer")] = "SCLC"
+clin_df$Histology[which(clin_df$Histology =="Squamous cell carcinoma")] = "SCC"
+# NSCLC has no survival data , confirm before dropping 
+with(clin_df, table(Histology, event))
+clin_df2 <- clin_df |>  filter(Histology != "NSCLC")
+clin_df$Histology <- factor(clin_df$Histology,levels = c("LUAD",   "SCLC", "SCC"))
+cox_strict <- coxph(
+    Surv(time, event) ~  Histology,
+    data = clin_df
+)
+pdf("../Figures/ggforest_cohorts_within_MD2.pdf", width =14, height = 7)
+ggforest(cox_strict, data = clin_df ,   fontsize = 1.75 )
+dev.off()
+
+pw <- emmeans(cox_strict, pairwise ~ Histology  )
+supp_table2 <- summary(  pw$contrasts,  infer = c(TRUE, TRUE)) %>%
+    mutate( HR = exp(estimate), Lower95CI = exp(asymp.LCL), Upper95CI = exp(asymp.UCL)   ) %>%
+    select(  Comparison = contrast, HR,  Lower95CI, Upper95CI, p.value)
+
+```
