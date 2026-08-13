@@ -23,7 +23,7 @@ my_enrichment_function = function(goi, title, resdir){
 }
 
 
-pacmap = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
+pacmap = read.delim("final_metadata_6_5_2026.txt" , header=T, stringsAsFactors=F)
 dataMtrx = readRDS("raw_batch_corrected_counts.rds")
 identical(rownames(pacmap), colnames(raw_bc_counts))
 resdir = "DEG_analysis"
