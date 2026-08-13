@@ -1,0 +1,385 @@
+---
+title: "Comparison with known subtypes for lung cancer"
+author: "Sonali Arora"
+date: "August 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r}
+
+rm(list=ls())
+library(ggpubr)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(scales)
+library(readr)
+
+collapse_genes <- function(mat) {
+    mat <- as.matrix(mat)
+    storage.mode(mat) <- "numeric"    
+    rn <- rownames(mat)
+    message("Collapsing duplicated gene rows by mean expression...")    
+    out <- rowsum(mat, group = rn, reorder = FALSE)    
+    counts <- as.numeric(table(factor(rn, levels = rownames(out))))    
+    out <- sweep(out, 1, counts, FUN = "/")    
+    return(out)
+}
+
+median_center <- function(expression_matrix) {
+    mat <- as.matrix(expression_matrix)
+    storage.mode(mat) <- "numeric"    
+    row_medians <- apply(mat, 1, median, na.rm = TRUE)
+    centered <- sweep(mat, 1, row_medians, FUN = "-")    
+    rownames(centered) <- rownames(mat)
+    colnames(centered) <- colnames(mat)    
+    centered
+}
+
+classify_nearest_centroid <- function( my_data, centroids_ref, min_genes = 300, min_margin = 0.05) {
+    my_data <- collapse_genes(my_data)
+    centroids_ref <- collapse_genes(centroids_ref)
+    centered_data <- median_center(my_data)
+    common_genes <- intersect(rownames(centered_data), rownames(centroids_ref))
+    message("Found ", length(common_genes), " shared signature genes.")
+      
+    sub_data <- centered_data[common_genes, , drop = FALSE]
+    sub_ref  <- centroids_ref[common_genes, , drop = FALSE]
+    
+    cor_matrix <- cor( sub_data, sub_ref, method = "pearson", use = "pairwise.complete.obs" )
+    top_idx <- max.col(cor_matrix, ties.method = "first")
+    top_cor <- cor_matrix[cbind(seq_len(nrow(cor_matrix)), top_idx)]
+    top_subtype <- colnames(cor_matrix)[top_idx]
+    
+    second_cor <- apply(cor_matrix, 1, function(z) {
+        z <- sort(z, decreasing = TRUE, na.last = NA)
+        if (length(z) < 2) return(NA_real_)
+        z[2]
+    })
+    
+    margin <- top_cor - second_cor
+    
+    pred <- ifelse( is.na(top_cor) | is.na(margin) | margin < min_margin, "Ambiguous", top_subtype)
+    
+    data.frame( Sample_ID = rownames(cor_matrix), Predicted_Subtype = pred, Max_Correlation = top_cor,
+        Second_Correlation = second_cor, Margin = margin, cor_matrix, check.names = FALSE )
+}
+
+my_data <- readRDS("log2_tpm_counts_with_bc.rds")
+umap_data = read.delim("metadata_6_5_2026.txt", header=T, stringsAsFactors = F)
+
+d1 = "OncoSubtype/data"
+centroids_ref_luad <- get(load( file.path(d1, "luad_centroids.rda")))
+centroids_ref_lusc =  get(load(file.path(d1, "lusc_centroids.rda")))
+
+## Fix old gene names
+rownames(centroids_ref_lusc)[match("IL8", rownames(centroids_ref_lusc)) ] = "CXCL8"
+rownames(centroids_ref_lusc)[match("TACSTD1", rownames(centroids_ref_lusc))] = "EPCAM"
+rownames(centroids_ref_lusc)[match("AOF2", rownames(centroids_ref_lusc))] = "KDM1A"
+rownames(centroids_ref_lusc)[match("SFRS10", rownames(centroids_ref_lusc))] = "TRA2B"
+rownames(centroids_ref_lusc)[match("CABC1", rownames(centroids_ref_lusc))] = "COQ8A"
+rownames(centroids_ref_lusc)[match("FAM46A", rownames(centroids_ref_lusc))] = "TENT5A"
+
+adeno = my_data[, which(umap_data$DISEASE=="Adenocarcinoma")]
+sq_data = my_data[, which(umap_data$DISEASE=="Squamous cell carcinoma")]
+
+## Run classifier
+classification_results_luad <- classify_nearest_centroid(adeno, centroids_ref_luad)
+classification_results_lusc <- classify_nearest_centroid(sq_data, centroids_ref_lusc)
+
+umap_data$predicted_luad_classification <- NA_character_
+umap_data$predicted_lusc_classification <- NA_character_
+
+idx_luad <- match(classification_results_luad$Sample_ID, umap_data$sampleName)
+idx_lusc <- match(classification_results_lusc$Sample_ID, umap_data$sampleName)
+
+umap_data$predicted_luad_classification[idx_luad] <- classification_results_luad$Predicted_Subtype
+umap_data$predicted_lusc_classification[idx_lusc] <- classification_results_lusc$Predicted_Subtype
+
+## find in published score 
+library(SummarizedExperiment)
+luad = readRDS("tcga_luad_ranged_summarized_Exp.rds")
+lusc = readRDS("tcga_lusc_ranged_summarized_Exp.rds")
+
+umap_data$reported_luad_classification <- NA_character_
+umap_data$reported_lusc_classification <- NA_character_
+
+luad_ids <- intersect(rownames(colData(luad)), umap_data$sampleName)
+lusc_ids <- intersect(rownames(colData(lusc)), umap_data$sampleName)
+
+luad_sub <- luad[, luad_ids]
+lusc_sub <- lusc[, lusc_ids]
+
+idx_luad_reported <- match(rownames(colData(luad_sub)), umap_data$sampleName)
+idx_lusc_reported <- match(rownames(colData(lusc_sub)), umap_data$sampleName)
+
+umap_data$reported_luad_classification[idx_luad_reported] <- as.character(colData(luad_sub)$paper_expression_subtype)
+umap_data$reported_lusc_classification[idx_lusc_reported] <- as.character(colData(lusc_sub)$paper_Expression.Subtype)
+
+## sclc subtype
+gay_centroids_raw <- readr::read_csv("../Gay_2021_SCLC_subtype_centroids-supplement-2.csv")
+
+gay_centroids <- gay_centroids_raw %>%
+    dplyr::rename(Gene = `Gene Name`) %>%
+    dplyr::select(Gene, `SCLC-N`, `SCLC-P`, `SCLC-I`, `SCLC-A`) %>%
+    dplyr::filter(!is.na(Gene)) %>%
+    dplyr::distinct(Gene, .keep_all = TRUE)
+
+gay_centroid_mat <- gay_centroids %>%
+    tibble::column_to_rownames("Gene") %>%
+    as.matrix()
+
+storage.mode(gay_centroid_mat) <- "numeric"
+
+sclc_ids <- intersect( umap_data$sampleName[umap_data$DISEASE == "Small Cell Lung Cancer"], colnames(my_data))
+sclc_expr <- my_data[, sclc_ids, drop = FALSE]
+sclc_expr <- as.matrix(sclc_expr)
+storage.mode(sclc_expr) <- "numeric"
+
+common_genes <- intersect(rownames(sclc_expr), rownames(gay_centroid_mat))
+sclc_expr_sub <- sclc_expr[common_genes, , drop = FALSE]
+gay_centroid_sub <- gay_centroid_mat[common_genes, , drop = FALSE]
+sclc_expr_centered <- sweep( sclc_expr_sub, 1, rowMeans(sclc_expr_sub, na.rm = TRUE), FUN = "-")
+
+# Center each gene across Gay subtype centroids
+gay_centroid_centered <- sweep( gay_centroid_sub, 1, rowMeans(gay_centroid_sub, na.rm = TRUE), FUN = "-")
+
+# correlations
+sclc_cor_mat <- cor( sclc_expr_centered, gay_centroid_centered, method = "pearson", use = "pairwise.complete.obs")
+
+assign_by_margin <- function(cor_mat, min_margin = 0.05) {
+    top_idx <- max.col(cor_mat, ties.method = "first")    
+    top_cor <- cor_mat[cbind(seq_len(nrow(cor_mat)), top_idx)]
+    top_subtype <- colnames(cor_mat)[top_idx]    
+    second_cor <- apply(cor_mat, 1, function(z) {
+        z <- sort(z, decreasing = TRUE, na.last = NA)
+        if (length(z) < 2) return(NA_real_)
+        z[2]
+    })    
+    margin <- top_cor - second_cor
+    predicted <- ifelse( is.na(margin) | margin < min_margin, "Ambiguous", top_subtype)
+    
+    data.frame( Sample_ID = rownames(cor_mat),
+        predicted_sclc_classification = predicted, Top_Subtype = top_subtype, Max_Correlation = top_cor,
+        Second_Correlation = second_cor, Margin = margin, cor_mat, check.names = FALSE)
+}
+
+sclc_classification <- assign_by_margin( sclc_cor_mat, min_margin = 0.05)
+
+umap_data$predicted_sclc_classification <- NA_character_
+idx <- match(sclc_classification$Sample_ID, umap_data$sampleName)
+umap_data$predicted_sclc_classification[idx] <- sclc_classification$predicted_sclc_classification
+write.table(umap_data, "metadata_6_11_2026_with_subtype.txt", sep ="\t", quote=F, row.names=F, col.names=T)
+
+## make figures 
+umap_data$reported_luad_classification[which(is.na(umap_data$reported_luad_classification))] = "Not Reported"
+umap_data$reported_lusc_classification[which(is.na(umap_data$reported_lusc_classification))] = "Not Reported"
+umap_data$predicted_luad_classification[which(is.na(umap_data$predicted_luad_classification))] = "Not Classified"
+umap_data$predicted_lusc_classification[which(is.na(umap_data$predicted_lusc_classification))] = "Not Classified"
+umap_data$predicted_sclc_classification[which(is.na(umap_data$predicted_sclc_classification))] = "Not Classified"
+
+## colors 
+luad_pred_cols <- c( "bronchoid" = "darkgreen", "magnoid"   = "chocolate", "squamoid"  = "blue",
+    "Ambiguous" = "black", "Not Classified" = "grey90")
+
+luad_rep_cols <- c( "TRU" = "darkgreen", "prox.-prolif." = "chocolate", "prox.-inflam"  = "blue",
+    "Not Reported" = "grey90")
+
+lusc_pred_cols <- c( "basal" = "orange", "classical" = "yellow", "primitive" = "cyan", "secretory" = "purple",
+    "Ambiguous" = "black", "Not Classified" = "grey90" )
+
+lusc_rep_cols <- c( "basal" = "orange", "classical" = "yellow", "primitive" = "cyan",
+    "secretory" = "purple", "Not Reported" = "grey90" )
+
+sclc_cols <- c( "SCLC-A" = "red", "SCLC-N" = "blue", "SCLC-P" = "purple", "SCLC-I" = "green", "Ambiguous" = "black",
+    "Not Classified" = "grey90" )
+
+luad_pred_levels <- names(luad_pred_cols)
+luad_rep_levels  <- names(luad_rep_cols)
+lusc_pred_levels <- names(lusc_pred_cols)
+lusc_rep_levels  <- names(lusc_rep_cols)
+sclc_levels <- names(sclc_cols)
+
+umap_data <- umap_data %>%
+    mutate( predicted_luad_classification = factor( predicted_luad_classification, levels = luad_pred_levels ),
+        reported_luad_classification = factor( reported_luad_classification, levels = luad_rep_levels ),
+        predicted_lusc_classification = factor( predicted_lusc_classification, levels = lusc_pred_levels ),
+        reported_lusc_classification = factor( reported_lusc_classification, levels = lusc_rep_levels ))
+
+umap_data$predicted_sclc_classification <- factor( umap_data$predicted_sclc_classification, 
+    levels = c("SCLC-A", "SCLC-N", "SCLC-P", "SCLC-I", "Ambiguous",  "Not Classified"))
+
+
+#   PaCMAP overlays
+p_luad_pred_pacmap <- ggplot( umap_data, aes(PaCMAP1, PaCMAP2, color = predicted_luad_classification)) +
+    geom_point(size = 2, color = "grey90") +
+    geom_point( data = umap_data[!is.na(umap_data$predicted_luad_classification), ],size = 2 ) +
+    scale_color_manual(values = luad_pred_cols[luad_pred_levels], na.value = "grey90") +
+    ggtitle("LUAD predicted classification") +
+    theme_clean + theme(legend.position = "bottom")
+
+p_luad_rep_pacmap <- ggplot( umap_data, aes(PaCMAP1, PaCMAP2, color = reported_luad_classification)) +
+    geom_point(size = 2, color = "grey90") +
+    geom_point( data = umap_data[!is.na(umap_data$reported_luad_classification), ], size = 2  ) +
+    scale_color_manual(values = luad_rep_cols[luad_rep_levels], na.value = "grey90") +
+    ggtitle("LUAD reported classification") +
+    theme_clean + theme(legend.position = "bottom")
+
+p_lusc_pred_pacmap <- ggplot(  umap_data, aes(PaCMAP1, PaCMAP2, color = predicted_lusc_classification) ) +
+    geom_point(size = 2, color = "grey90") +
+    geom_point(  data = umap_data[!is.na(umap_data$predicted_lusc_classification), ], size = 2) +
+    scale_color_manual(values = lusc_pred_cols[lusc_pred_levels], na.value = "grey90") +
+    ggtitle("LUSC predicted classification") +
+    theme_clean + theme(legend.position = "bottom")
+
+p_lusc_rep_pacmap <- ggplot( umap_data, aes(PaCMAP1, PaCMAP2, color = reported_lusc_classification)) +
+    geom_point(size = 2, color = "grey90") +
+    geom_point( data = umap_data[!is.na(umap_data$reported_lusc_classification), ], size = 2) +
+    scale_color_manual(values = lusc_rep_cols[lusc_rep_levels], na.value = "grey90") +
+    ggtitle("LUSC reported classification") +
+    theme_clean + theme(legend.position = "bottom")
+
+p_sclc <- ggplot( umap_data, aes(PaCMAP1, PaCMAP2, color = predicted_sclc_classification) ) +
+    geom_point(size = 2, color = "grey90") +
+    geom_point( data = umap_data[!is.na(umap_data$predicted_sclc_classification), ], size = 2  ) +
+    scale_color_manual(values = sclc_cols, na.value = "grey90") +
+    ggtitle("SCLC classification") + 
+    theme_clean + theme(legend.position = "bottom")
+
+
+# Make barplots
+
+luad_pct_df <- make_cluster_pct_df(
+    df = umap_data, pred_col = "predicted_luad_classification",
+    rep_col = "reported_luad_classification", pred_levels = luad_pred_levels, rep_levels = luad_rep_levels )
+
+lusc_pct_df <- make_cluster_pct_df(
+    df = umap_data, pred_col = "predicted_lusc_classification", rep_col = "reported_lusc_classification",
+    pred_levels = lusc_pred_levels, rep_levels = lusc_rep_levels )
+
+luad_pred_obj <- prep_single_source_bar_df(luad_pct_df, "predicted")
+luad_rep_obj <- prep_single_source_bar_df(luad_pct_df, "reported")
+
+luad_pred_plot_df <- luad_pred_obj$plot_df
+luad_pred_clusters <- luad_pred_obj$cluster_levels
+
+luad_rep_plot_df <- luad_rep_obj$plot_df
+luad_rep_clusters <- luad_rep_obj$cluster_levels
+
+lusc_pred_obj <- prep_single_source_bar_df(lusc_pct_df, "predicted")
+lusc_rep_obj <- prep_single_source_bar_df(lusc_pct_df, "reported")
+
+lusc_pred_plot_df <- lusc_pred_obj$plot_df
+lusc_pred_clusters <- lusc_pred_obj$cluster_levels
+
+lusc_rep_plot_df <- lusc_rep_obj$plot_df
+lusc_rep_clusters <- lusc_rep_obj$cluster_levels
+
+# Make explicit NA category and fixed subtype order
+sclc_cluster_pct_df <- umap_data %>%
+    dplyr::select(cluster, predicted_sclc_classification) %>%
+    dplyr::mutate( subtype = as.character(predicted_sclc_classification),
+        subtype = ifelse(is.na(subtype), "NA", subtype),
+        subtype = factor(subtype, levels = sclc_levels),
+        stack_order = match(as.character(subtype), sclc_levels)) %>%
+    dplyr::group_by(cluster, subtype, stack_order) %>%
+    dplyr::summarise(n = dplyr::n(), .groups = "drop") %>%
+    dplyr::group_by(cluster) %>%
+    dplyr::mutate( cluster_total = sum(n), pct = 100 * n / cluster_total) %>%
+    dplyr::ungroup()
+
+# Manual stacking so NA is always on top
+if (is.numeric(sclc_cluster_pct_df$cluster)) {
+    cluster_levels <- as.character(sort(unique(sclc_cluster_pct_df$cluster)))
+} else {
+    cluster_levels <- unique(as.character(sclc_cluster_pct_df$cluster))
+}
+
+sclc_plot_df <- sclc_cluster_pct_df %>%
+    dplyr::mutate( cluster_chr = as.character(cluster),
+        cluster_factor = factor(cluster_chr, levels = cluster_levels),
+        cluster_num = as.numeric(cluster_factor),
+        subtype_chr = as.character(subtype)) %>%
+    dplyr::group_by(cluster_factor, cluster_num) %>%
+    dplyr::arrange(stack_order, .by_group = TRUE) %>%
+    dplyr::mutate( ymin = cumsum(dplyr::lag(pct, default = 0)), ymax = cumsum(pct)) %>%
+    dplyr::ungroup()
+
+p_sclc_bar <- ggplot(sclc_plot_df) +
+    geom_rect( aes( xmin = cluster_num - 0.45, xmax = cluster_num + 0.45, ymin = ymin,  ymax = ymax, fill = subtype_chr),
+               color = "white", linewidth = 0.2) +
+    scale_x_continuous( breaks = seq_along(cluster_levels), labels = cluster_levels ) +
+    scale_fill_manual( values = sclc_cols, breaks = names(sclc_cols), drop = FALSE ) +
+    scale_y_continuous( labels = function(x) paste0(x, "%"), limits = c(0, 100), expand = c(0, 0) ) +
+    labs( x = "Landscape cluster", y = "% of samples within cluster", fill = "SCLC subtype", title = "SCLC subtypes") +
+    theme_bw() +
+    theme( legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 20),
+           axis.text.y = element_text(size = 20), axis.title.x = element_text( size = 20),
+           axis.title.y = element_text( size = 20), legend.text = element_text(size = 14),       # Changes size of the legend labels
+           legend.title = element_blank(), plot.title = element_text(hjust=0, vjust=0, 
+              lineheight=.8, face="bold", size=plot_title_size ))
+
+p_luad_pred_bar <- ggplot(luad_pred_plot_df) + 
+    geom_rect( aes( xmin = cluster_num - 0.45, xmax = cluster_num + 0.45, ymin = ymin, ymax = ymax, fill = subtype_chr), color = "white", linewidth = 0.2) +
+    scale_x_continuous( breaks = seq_along(luad_pred_clusters), labels = luad_pred_clusters ) +
+    scale_fill_manual(  values = luad_pred_cols, breaks = names(luad_pred_cols),  drop = FALSE ) +
+    scale_y_continuous( labels = function(x) paste0(x, "%"), limits = c(0, 100), expand = c(0, 0)) +
+    labs( x = "Landscape cluster",  y = "% of samples within cluster", fill = "LUAD subtype", title = "LUAD predicted subtypes" ) +
+    theme_bw() +
+    theme( legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 20),
+        axis.text.y = element_text(size = 20), axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20), legend.text = element_text(size = 14),legend.title = element_blank(), 
+        plot.title = element_text( hjust = 0, vjust = 0, lineheight = .8, face = "bold", size = plot_title_size))                       
+
+p_luad_rep_bar <- ggplot(luad_rep_plot_df) + 
+    geom_rect( aes( xmin = cluster_num - 0.45, xmax = cluster_num + 0.45, ymin = ymin, ymax = ymax, fill = subtype_chr), color = "white", linewidth = 0.2) +
+    scale_x_continuous( breaks = seq_along(luad_rep_clusters), labels = luad_rep_clusters ) +
+    scale_fill_manual( values = luad_rep_cols, breaks = names(luad_rep_cols), drop = FALSE ) +
+    scale_y_continuous( labels = function(x) paste0(x, "%"), limits = c(0, 100),  expand = c(0, 0)) +
+    labs( x = "Landscape cluster", y = "% of samples within cluster", fill = "LUAD subtype", title = "LUAD reported subtypes") +
+    theme_bw() +
+    theme( legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 20),
+        axis.text.y = element_text(size = 20), axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20), legend.text = element_text(size = 14),legend.title = element_blank(), 
+        plot.title = element_text( hjust = 0, vjust = 0, lineheight = .8, face = "bold", size = plot_title_size))          
+
+p_lusc_pred_bar <- ggplot(lusc_pred_plot_df) +
+    geom_rect( aes( xmin = cluster_num - 0.45, xmax = cluster_num + 0.45, ymin = ymin, ymax = ymax, fill = subtype_chr), color = "white", linewidth = 0.2) +
+    scale_x_continuous( breaks = seq_along(lusc_pred_clusters), labels = lusc_pred_clusters ) +
+    scale_fill_manual( values = lusc_pred_cols, breaks = names(lusc_pred_cols), drop = FALSE) +
+    scale_y_continuous( labels = function(x) paste0(x, "%"), limits = c(0, 100), expand = c(0, 0) ) +
+    labs( x = "Landscape cluster", y = "% of samples within cluster", fill = "LUSC subtype", title = "LUSC predicted subtypes" ) +
+    theme_bw() +
+    theme( legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 20),
+        axis.text.y = element_text(size = 20), axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20), legend.text = element_text(size = 14),legend.title = element_blank(), 
+        plot.title = element_text( hjust = 0, vjust = 0, lineheight = .8, face = "bold", size = plot_title_size))   
+
+p_lusc_rep_bar <- ggplot(lusc_rep_plot_df) +
+  geom_rect( aes( xmin = cluster_num - 0.45, xmax = cluster_num + 0.45, ymin = ymin, ymax = ymax, fill = subtype_chr), color = "white", linewidth = 0.2) +
+    scale_x_continuous( breaks = seq_along(lusc_rep_clusters), labels = lusc_rep_clusters ) +
+    scale_fill_manual( values = lusc_rep_cols,  breaks = names(lusc_rep_cols), drop = FALSE     ) +
+    scale_y_continuous( labels = function(x) paste0(x, "%"), limits = c(0, 100), expand = c(0, 0)) +
+    labs( x = "Landscape cluster", y = "% of samples within cluster", fill = "LUSC subtype", title = "LUSC reported subtypes" ) +
+    theme_bw() +
+     theme( legend.position = "bottom", axis.text.x = element_text(angle = 45, hjust = 1, size = 20),
+        axis.text.y = element_text(size = 20), axis.title.x = element_text(size = 20),
+        axis.title.y = element_text(size = 20), legend.text = element_text(size = 14),legend.title = element_blank(), 
+        plot.title = element_text( hjust = 0, vjust = 0, lineheight = .8, face = "bold", size = plot_title_size))   
+
+blank_panel <- ggplot() + theme_void()
+
+fig_all_12_panel <- ggarrange( plotlist = list(
+    blank_panel, p_luad_pred_pacmap + theme(legend.position = "none"), p_luad_rep_pacmap + theme(legend.position = "none"),
+    blank_panel, p_luad_pred_bar +  guides(color = guide_legend(nrow = 2)), p_luad_rep_bar + guides(color = guide_legend(nrow = 2)),
+    p_lusc_pred_pacmap + theme(legend.position = "none"), p_lusc_rep_pacmap + theme(legend.position = "none"), p_sclc  + theme(legend.position = "none"),
+    p_lusc_pred_bar , p_lusc_rep_bar +  guides(color = guide_legend(nrow = 2)), p_sclc_bar),     
+    ncol = 3, nrow = 4)
+
+pdf(file.path( "../Figures/Multiplot_luad_lusc_sclc_subtypes_v1_final_7_10_2026.pdf"), height = 20, width = 16)
+fig_all_12_panel
+dev.off()
+```                       
