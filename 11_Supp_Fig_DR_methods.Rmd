@@ -1,0 +1,136 @@
+---
+title: "Comparison of Dimension reduction methods"
+author: "Sonali Arora"
+date: "August 12, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+```{r}
+
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(ggpubr)
+
+s1 = 2# size for points in PCA plot
+legend_pt_size =4
+plot_title_size = 25
+axis_text_size = 25
+axis_title_size=25
+legend_text_size=25
+plot_text = 10
+spacing=1
+chosen_margin = c(0.5,1,0.5,1)# margins:top,right,bottom,left
+theme_clean <- theme_bw() +
+    theme(
+        plot.title = element_text(hjust=0, vjust=0, 
+                                  lineheight=.8, face="bold", size=plot_title_size ),
+        plot.margin=unit(chosen_margin,"cm"), 
+        legend.text=element_text(size=legend_text_size),
+        legend.key.height = unit(spacing, "cm"),
+        legend.title=element_blank() , 
+        axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(), 
+        axis.title.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank())
+
+qual_col_pals = brewer.pal.info[brewer.pal.info$category == 'qual',]
+col_vector = unlist(mapply(brewer.pal, qual_col_pals$maxcolors, rownames(qual_col_pals)))
+umap_data2 = read.delim("metadata_6_5_2026.txt", header=T, stringsAsFactors = F)
+
+umap_data2$cohorts = umap_data2$cluster
+umap_data2$cohorts = gsub("cohort", "",  umap_data2$cohorts)
+table(umap_data2$cohorts, useNA = "always")
+
+umap_data2$AJCC_PATHOLOGIC_STAGE[which( umap_data2$AJCC_PATHOLOGIC_STAGE =="na")] = NA_character_
+umap_data2$GRADE[which( umap_data2$GRADE =="na")] = NA_character_
+umap_data2$SMOKING.STATUS.X[which( umap_data2$SMOKING.STATUS.X =="na")] = NA_character_
+umap_data2$RACE[which( umap_data2$RACE =="na")] = NA_character_
+umap_data2$GENDER[which( umap_data2$GENDER =="na")] = NA_character_
+
+#pacmap
+p1= ggplot(umap_data2 %>% arrange(desc(DATASET)),  aes(PaCMAP1, PaCMAP2, color=DATASET )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + #  +
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+ggdf = umap_data2[ order(umap_data2$DISEASE), ]
+p2= ggplot(ggdf,  aes(PaCMAP1, PaCMAP2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c( "orange", "blue", "darkgreen", "red")) +
+    theme_clean + guides(color=guide_legend(ncol=1))
+
+p3= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(PaCMAP1, PaCMAP2, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+## pca 
+pca1= ggplot(umap_data2 %>% arrange(desc(DATASET)),  aes(PC1, PC2, color=DATASET )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + #  +
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+ggdf = umap_data2[ order(umap_data2$DISEASE), ]
+pca2= ggplot(ggdf, aes(PC1, PC2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c( "orange", "blue", "darkgreen", "red")) +
+    theme_clean + guides(color=guide_legend(ncol=1))
+
+pca3= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(PC1, PC2, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+## tSNE
+t1= ggplot(umap_data2 %>% arrange(desc(DATASET)),  aes(tSNE_1, tSNE_2, color=DATASET )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + #  +
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+ggdf = umap_data2[ order(umap_data2$DISEASE), ]
+t2= ggplot(ggdf, aes(tSNE_1, tSNE_2, color=DISEASE )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c( "orange", "blue", "darkgreen", "red")) +
+    theme_clean + guides(color=guide_legend(ncol=1))
+
+t3= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(tSNE_1, tSNE_2, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+## UMAP
+u1= ggplot(umap_data2 %>% arrange(desc(DATASET)),  aes(UMAP1_2d, UMAP2_2d, color=DATASET )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + #  +
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+ggdf = umap_data2[ order(umap_data2$DISEASE), ]
+u2= ggplot(ggdf ,  aes(UMAP1_2d, UMAP2_2d, color=DISEASE )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c( "orange", "blue", "darkgreen", "red")) +
+    theme_clean + guides(color=guide_legend(ncol=1))
+
+u3= ggplot(umap_data2 %>% arrange(desc(cohorts )),  aes(UMAP1_2d, UMAP2_2d, color=cohorts )) +
+    geom_point(size=s1) + 
+    scale_color_manual(values = c(col_vector[1:3], col_vector[5:21])) + 
+    theme_clean + guides(color=guide_legend(ncol=2))
+
+
+lst = list( p1 , p2, p3, 
+            pca1, pca2, pca3, 
+            t1, t2, t3, 
+            u1, u2, u3)
+lst2 = lapply(lst, function(x) x + theme(legend.position = "none"))
+
+pdf(file.path( "../Figures/Multiplot_supp_fig1_all_DR_METHODS_6_5_2026.pdf"),height = 20, width = 16)
+ggarrange( plotlist = lst2, nrow =4, ncol =3)
+dev.off()
+
+```
