@@ -1,0 +1,160 @@
+---
+title: "Cluster-level association results "
+author: "Sonali Arora"
+date: "August 1, 2026"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(broom)
+library(patchwork)
+
+clinical_meta <- read.delim( "metadata_6_12_2026_with_clusters.txt", header = TRUE, stringsAsFactors = FALSE, check.names = FALSE)
+
+tme_scores_base <- df %>%  transmute( sample_id = sampleName,
+        xcell_immune_score = xcell_immune_score,
+        xcell_stroma_score = xcell_StromaScore,
+        xcell_microenvironment_score = xcell_MicroenvironmentScore,
+        estimate_immune_score = ESTIMATE_immune_score,
+        estimate_stroma_score = ESTIMATE_StromaScore,
+        estimate_score = ESTIMATE_Score,
+        puree_purity = PUREE_purity  )
+
+## functions for plotting 
+
+plot_cluster_categorical_heatmap <- function(data, var, title) {  
+    df <- data %>%
+        filter(!is.na(cluster), !is.na(.data[[var]])) %>%
+        count(cluster, level = .data[[var]], name = "n") %>%
+        group_by(cluster) %>%
+        mutate( n_available = sum(n), fraction = n / n_available, label = paste0(n, "/", n_available) ) %>%
+        ungroup()
+      
+    ggplot(df, aes(x = level, y = cluster, fill = fraction)) +
+        geom_tile(color = "white", linewidth = 0.25) +  geom_text(aes(label = label), size = 2.7) + 
+        scale_fill_gradient(low = "white", high = "steelblue", limits = c(0, 1)) +
+        labs( title = title, x = NULL, y = "Cluster", fill = "Fraction" ) +
+        theme_bw(base_size = 10) +
+        theme( axis.text.x = element_text(angle = 45, hjust = 1), panel.grid = element_blank(),
+            plot.title = element_text(face = "bold"))
+}
+
+plot_cluster_continuous_boxplot <- function(data, var, title, ylab) {
+      df <- data %>%
+         filter(!is.na(cluster), !is.na(.data[[var]]))
+      
+    ggplot(df, aes(x = cluster, y = .data[[var]])) +
+        geom_boxplot(outlier.shape = NA, width = 0.65) +
+        geom_jitter(width = 0.15, alpha = 0.45, size = 0.8) +
+        labs( title = title, x = "Cluster", y = ylab ) + theme_bw(base_size = 10) +
+        theme( axis.text.x = element_text(angle = 45, hjust = 1),
+            plot.title = element_text(face = "bold"))
+}
+
+## TME 
+cibersort <- read.delim( "CIBERSORTx_Job24_Results.txt", header = TRUE, stringsAsFactors = FALSE,
+    row.names = 1, check.names = FALSE)
+cibersort <- cibersort[, 1:22]
+colnames(cibersort) <- paste0( "cibersortx_", colnames(cibersort) %>% make.names() %>%  tolower() )
+cibersort_tbl <- cibersort %>%  as.data.frame() %>%
+    rownames_to_column("sample_id")
+tme_scores <- tme_scores_base %>%  
+    left_join(cibersort_tbl, by = "sample_id")
+
+stopifnot(!anyDuplicated(tme_scores$sample_id))
+stopifnot(nrow(tme_scores) == nrow(clinical_meta))
+
+## GENE EXPRESSION for NE 
+gene_exp_file <- readRDS("log2_tpm_counts_with_bc.rds")
+goi <- c("CD274", "ASCL1", "CHGA", "SYP", "NCAM1", "INSM1")
+expr_goi <- gene_exp_file[goi, , drop = FALSE] %>%
+    t() %>%
+    as.data.frame() %>%
+    rownames_to_column("sample_id") 
+
+expr_goi <- expr_goi %>%
+    mutate( across( all_of(ne_marker_cols), ~ as.numeric(scale(.x)),  .names = "z_{.col}" )) %>%
+    rowwise() %>% 
+    mutate( ne_marker_score = mean( c_across(starts_with("z_")), na.rm = TRUE )) %>%
+    ungroup()
+
+## MUTATIONS - oncogenes 
+mutation_matrix = readRDS("mutation_data.rds")
+oncogenes <- c("EGFR", "KRAS", "ALK", "ROS1", "RET", "MET", "BRAF", "ERBB2")
+
+## mutation burden 
+mutation_burden = readRDS("mutation_burden.rds") 
+
+## fusion genes
+fusion_genes <- c( "ALK", "ROS1", "RET", "MET", "ERBB2", "NTRK1", "NTRK2", "NTRK3", "NRG1")
+fusion_matrix = readRDS("allgene_fusions_with_cptac_7_2_2026.rds")
+
+analysis_df <- clinical_meta %>%
+    left_join(tme_scores, by = "sample_id") %>%
+    left_join(expr_goi, by = "sample_id") %>%
+    left_join(mutation_matrix, by = "sample_id") %>%
+    left_join(fusion_matrix, by = "sample_id") %>%
+    left_join(mutation_burden %>%
+        select( sample_id, dna_available, mutation_burden_count, tmb_mut_per_mb, burden_label ), by = "sample_id" )
+
+saveRDS(analysis_df, "analysis_df.rds")
+
+## set levels 
+cluster_levels <- c("A1", "A2", "A3", "A4", "MD1", "MD2", "SC", "SQ1", "SQ2")
+analysis_df <- analysis_df %>%
+    mutate( cluster = factor(cluster, levels = cluster_levels),
+        histology = factor(histology, levels = c("LUAD", "LUSC", "SCLC", "NSCLC-NOS")),
+        smoking_status = factor(smoking_status, levels = c("Non-smoker", "Current smoker")),
+        sex = factor(sex, levels = c("Female", "Male")),
+        stage = factor(stage, levels = c("I", "II", "III", "IV")),
+        specimen_type = factor(specimen_type) )
+
+## make figures 
+p_histology <- plot_cluster_categorical_heatmap( analysis_df, var = "histology", 
+  title = "Histology by cluster" )
+
+p_smoking_status <- plot_cluster_categorical_heatmap( analysis_df, var = "smoking_status", 
+  title = "Smoking status by cluster" )
+
+p_burden <- plot_cluster_continuous_boxplot( analysis_df, var = burden_var, 
+  title = paste0("Burden by cluster"),  ylab = burden_label )  
+
+p_sex <- plot_cluster_categorical_heatmap( analysis_df, var = "sex", title = "Sex by cluster" )  
+  
+p_stage <- plot_cluster_categorical_heatmap( analysis_df, var = "stage", title = "Stage by cluster")
+
+p_ne <- plot_cluster_continuous_boxplot( analysis_df, var = "ne_marker_score", 
+  title = "H. Neuroendocrine marker score by cluster",  ylab = "NE marker score")
+
+base_tme_features <- c( "puree_purity","estimate_immune_score", "estimate_stroma_score",
+    "estimate_score", "xcell_immune_score", "xcell_stroma_score", "xcell_microenvironment_score", "cd274" )
+
+cibersort_tme_features <- grep( "cibersortx_.*(cd8|cd4|b.cells|macrophage|neutrophil|t.cells.cd8|t.cells.cd4|b.cells|monocytes)",
+    colnames(analysis_df), value = TRUE, ignore.case = TRUE)
+
+tme_features <- unique(c( intersect(base_tme_features, colnames(analysis_df)), cibersort_tme_features ))
+tme_long <- analysis_df %>%  select(cluster, all_of(tme_features)) %>%
+        pivot_longer( cols = all_of(tme_features), names_to = "feature", values_to = "value" ) %>%
+        filter(!is.na(cluster), !is.na(value)) %>% 
+        group_by(feature) %>% 
+        mutate(value_scaled = as.numeric(scale(value))) %>%
+        ungroup()
+    
+tme_cluster_summary <- tme_long %>%
+        group_by(cluster, feature) %>%
+        summarise( median_scaled_value = median(value_scaled, na.rm = TRUE), n_available = n(), .groups = "drop" ) %>%
+        mutate( feature = pretty_feature(feature) )
+    
+p_tme <- ggplot( tme_cluster_summary, aes(x = feature, y = cluster, fill = median_scaled_value)) +
+        geom_tile(color = "white", linewidth = 0.25) + scale_fill_gradient2(low = "navy", mid = "white", high = "firebrick") +
+        labs( title = "I. Tumor microenvironment features by cluster", x = NULL, y = "Cluster", fill = "Median\nscaled score" ) +
+        theme_bw(base_size = 10) + 
+        theme(axis.text.x = element_text(angle = 45, hjust = 1), panel.grid = element_blank(), plot.title = element_text(face = "bold"))  
+  
+```
