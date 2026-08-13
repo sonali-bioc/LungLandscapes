@@ -41,7 +41,7 @@ tft_db = lapply(tft_db, function(x) x[,2])
 hallmark= split(hallmark, hallmark[,1])
 hallmark = lapply(hallmark, function(x) x[,2])
 
-umap_data2 = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
+umap_data2 = read.delim("final_metadata_6_5_2026.txt" , header=T, stringsAsFactors=F)
 counts = readRDS("log2tpm.rds")
 
 gsvapar <- gsvaParam(counts, kegg_lst, maxDiff=TRUE)
@@ -104,7 +104,7 @@ theme_clean <- theme_bw() +
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank())
 
-umap_data2 = read.delim("final_metadata_3_12_2026.txt" , header=T, stringsAsFactors=F)
+umap_data2 = read.delim("final_metadata_6_5_2026.txt" , header=T, stringsAsFactors=F)
 score = readRDS("pathways.rds")
 
 myPalette2 <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
