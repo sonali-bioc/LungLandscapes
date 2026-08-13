@@ -58,6 +58,9 @@ df14 = read.delim("lung_berger_hg38_raw_protein_coding_genes.txt", row.names = 1
 tcga_luad = readRDS("unstranded_raw_protein_coding_tcga_luad.rds") 
 tcga_lusc = readRDS("unstranded_raw_protein_coding_tcga_lusc.rds") 
 
+# read in lung samples from CPTAC-3
+cptac = readRDS("~/HollandLabShared/Laavan/lung_landscapes/Sonali_final_data/raw_counts/cptac_3/raw.lung267samples.rds")
+
 # find common protein coding genes for each dataset
 gtf = import("gencode.v39.primary_assembly.annotation.gtf")
 common_genes = gtf$gene_name
@@ -77,10 +80,11 @@ df13 = df13[common_genes, ]
 df14 = df14[common_genes, ]
 tcga_luad = tcga_luad[common_genes, ]
 tcga_lusc = tcga_lusc[common_genes, ]
+cptac = cptac[common_genes, ]
 
 # combine all the data
 count_matrix = cbind(df1, df2, df3, df4, df5, df6, df7, df8, df9, df10, df11, df12, df13, df14, 
-                     tcga_luad, tcga_lusc)
+                     tcga_luad, tcga_lusc, cpatc)
 
 # define batches for batch correction
 batch = c(rep("apollo", ncol(df1)), rep("SRP045225", ncol(df2)),  rep("SRP117020", ncol(df3)),
@@ -88,7 +92,8 @@ batch = c(rep("apollo", ncol(df1)), rep("SRP045225", ncol(df2)),  rep("SRP117020
           rep("SRP090460", ncol(df7)), rep("MacphersonLab", ncol(df8)), rep("FHCC", ncol(df9)),
           rep("PRJNA671365", ncol(df10)), rep("GSE217646", ncol(df11)),
           rep("GSE126044", ncol(df12)), rep("GSE135222", ncol(df13)),rep("Berger Lab", ncol(df14)),
-          rep("tcga", ncol(tcga_luad)), rep("tcga", ncol(tcga_lusc)))
+          rep("tcga", ncol(tcga_luad)), rep("tcga", ncol(tcga_lusc)), 
+          rep("cptac", ncol(cptac))  )
 
 ## batch correction 
 adjusted <- ComBat_seq(count_matrix, batch=batch, group=NULL)
@@ -142,9 +147,16 @@ tsne_out2 <- Rtsne(t(dataMtrx),pca=FALSE,perplexity=30,theta=0.0,check_duplicate
 tsne_data2 = tsne_out2$Y
 colnames(tsne_data2) = c("tSNE_1", "tSNE_2")
 
+## pca plot 
+pc= prcomp(t(dataMtrx))
+pc_data1 = data.frame(PC1=pc$x[,1], PC2=pc$x[,2] )
+percentVar <- (pc$sdev^2 / sum( pc$sdev^2 ) )*100
+percentVar= round(percentVar[1:2], 2)
+
+
 # save the files 
-ans_df =data.frame(  umap_2d, embedding, tsne_data2, sampleName = colnames(dataMtrx))
-write.table(ans_df, "final_metadata_3_12_2026.txt", sep ="\t", quote=F, row.names=F, col.names=T)
+ans_df =data.frame(  umap_2d, embedding, tsne_data2, pc_data1, sampleName = colnames(dataMtrx))
+write.table(ans_df, "final_metadata_6_5_2026.txt", sep ="\t", quote=F, row.names=F, col.names=T)
 saveRDS(log2_tpm_counts, "log2_tpm_counts.rds")
 saveRDS(dataMtrx, "vst_counts.rds")
 saveRDS(count_matrix , "raw_matrix_not_batch_corrected.rds")
