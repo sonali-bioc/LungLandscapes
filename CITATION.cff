@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "LungLandscapes"
+type: software
+version: 1.0.0
+
+authors:
+  - family-names: Arora
+    given-names: Sonali
+
+repository-code: "https://github.com/sonali-bioc/LungLandscapes"
+
+abstract: >
+  Analysis and sample-projection code supporting an integrated
+  transcriptomic landscape of lung cancer.
+
+keywords:
+  - lung cancer
+  - transcriptomics
+  - RNA-seq
+  - PaCMAP
